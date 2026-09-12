@@ -1,27 +1,9 @@
-<!--
-  ~ Copyright © 2025-2026 Dezz (https://github.com/DezzK)
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
-
 <resources>
     <string name="app_name">GNSS Client</string>
     <string name="connection_status_title">Connection Status</string>
     <string name="connected">Connected</string>
     <string name="connecting">Connecting…</string>
     <string name="disconnected">Disconnected</string>
-    <string name="connection_status">%s</string>
     <string name="connection_status_connected">✓ Connected to %s</string>
     <string name="connection_status_connecting">Connecting to %s…</string>
     <string name="connection_status_disconnected">✗ Disconnected</string>
@@ -31,18 +13,44 @@
 
     <string name="permission_title">Permissions</string>
     <string name="checking_permissions">Checking permissions…</string>
-    <string name="request_permissions">Request All Permissions</string>
+    <string name="request_permissions">Request Required Permissions</string>
     <string name="all_permissions_granted">✓ All permissions granted</string>
-    <string name="all_permissions_granted_toast">All permissions granted!</string>
-    <string name="missing_permissions_toast">Some permissions were denied. The app may not work properly.</string>
+    <string name="missing_permissions_toast">Required permissions were denied</string>
     <string name="missing_permissions">Missing: %s</string>
-    <string name="mock_location_enable_message">Please enable \"Allow mock locations\" in Developer Options and select this app</string>
-    <string name="mock_location_permission_denied">Mock location permission denied - check Developer Options</string>
-    <string name="mock_location_setup_failed">Mock location setup failed: %s</string>
-    <string name="mock_location_provider_ready">✓ Mock location provider ready</string>
-
     <string name="permission_fine_location">Fine Location</string>
     <string name="permission_coarse_location">Coarse Location</string>
+    <string name="permission_bluetooth_connect">Nearby devices</string>
+    <string name="mock_location_enable_message">Please enable "Allow mock locations" in Developer Options and select this app</string>
+    <string name="mock_location_permission_denied">Mock location permission denied - check Developer Options</string>
+    <string name="mock_location_setup_failed">Mock location setup failed: %s</string>
+    <string name="open_mock_location_settings">Open Developer Options</string>
+
+    <string name="phone_binding_title">Paired Phone</string>
+    <string name="target_device_not_selected">No phone selected. Pair it in Android settings first.</string>
+    <string name="target_device_selected">%1$s
+%2$s</string>
+    <string name="select_phone">Select Phone</string>
+    <string name="change_phone">Change Phone</string>
+    <string name="select_phone_title">Select Paired Phone</string>
+    <string name="bluetooth_permission_required">Bluetooth permission required</string>
+    <string name="bluetooth_no_paired_devices">No paired Bluetooth devices found. Pair the phone in Android settings first.</string>
+    <string name="bluetooth_enable_required">Bluetooth is required. Enable it to receive GNSS.</string>
+
+    <string name="service_status_title">Background Service Status</string>
+    <string name="service_running">✓ Service is running</string>
+    <string name="service_starting">Starting service…</string>
+    <string name="status_waiting_for_permissions">Waiting for required permissions</string>
+    <string name="status_bluetooth_unsupported">Classic Bluetooth is not supported</string>
+    <string name="status_bluetooth_disabled">Bluetooth is disabled</string>
+    <string name="status_bluetooth_enable_denied">Bluetooth is required; enable it and reopen the app</string>
+    <string name="status_select_phone">Select a paired phone</string>
+    <string name="status_target_unavailable">Saved phone is unavailable; re-pair it or choose another phone</string>
+    <string name="status_connecting_saved_phone">Connecting to saved phone</string>
+    <string name="status_connection_failed_retrying">Connection failed; retrying</string>
+    <string name="status_connection_lost_retrying">Connection lost; retrying</string>
+    <string name="status_server_response_timeout">Server response timed out; retrying</string>
+    <string name="status_receiving_gnss">Receiving GNSS data</string>
+    <string name="status_shutting_down">Shutting down</string>
 
     <string name="location_information_title">Location Information</string>
     <string name="location_status">Location: %s</string>
@@ -57,29 +65,13 @@
     <string name="speed_format">%.1f m/s</string>
     <string name="movement_bearing">Bearing: %s</string>
     <string name="bearing_format" translatable="false">%.1f°</string>
-
     <string name="unknown">unknown</string>
 
-    <string name="select_server_address_title">Server Address</string>
-    <string name="connect_to_gateway_ip">Use gateway IP (server on Wi-Fi mobile hotspot)</string>
-    <string name="set_hostname_or_ip_address_manually">Set hostname or IP address manually</string>
-    <string name="editServerIp">Server hostname or IP address</string>
-
-    <string name="service_status_title">Background Service Status</string>
-    <string name="service_running">✓ Service is running</string>
-    <string name="service_stopped">✗ Service is stopped</string>
-    <string name="enable_service">Start</string>
-    <string name="disable_service">Stop</string>
-    <string name="toast_service_enabled">GNSS Client Service enabled - will auto-start on boot</string>
-    <string name="toast_service_disabled">GNSS Client Service disabled - will not auto-start</string>
-
     <string name="static_jitter">Add jitter when static (hides ads in some navigation apps)</string>
-
     <string name="notification_title_disconnected">%s - Disconnected</string>
     <string name="notification_title_connected">%s - Connected</string>
-    <string name="notification_text_disconnected">Attempting to connect to GNSS server</string>
+    <string name="notification_text_disconnected">Waiting for or reconnecting to the saved phone</string>
     <string name="notification_text_connected">Receiving location data | Age: %.1fs</string>
     <string name="notification_text_connected_no_age">Receiving location data</string>
-    <string name="notification_text_location_format">Lat: %1$.6f, Lon: %2$.6f</string>
     <string name="notification_channel_description">%s Location Service</string>
 </resources>

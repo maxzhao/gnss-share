@@ -5,19 +5,14 @@
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-
 package dezz.gnssshare.client;
 
 import android.Manifest;
+import android.annotation.SuppressLint;
+import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -25,22 +20,21 @@ import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.location.Location;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.Looper;
 import android.provider.Settings;
-import android.text.Editable;
-import android.text.TextWatcher;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.CheckBox;
-import android.widget.EditText;
-import android.widget.RadioButton;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.app.AppCompatDelegate;
 import androidx.core.content.ContextCompat;
@@ -49,19 +43,15 @@ import androidx.core.content.IntentCompat;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 
 import dezz.gnssshare.shared.LogExporter;
 import dezz.gnssshare.shared.VersionGetter;
 
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "GNSSClientActivity";
-
-    // Required permissions for the GNSS client
-    private static final String[] REQUIRED_PERMISSIONS = {
-            Manifest.permission.ACCESS_FINE_LOCATION,
-            Manifest.permission.ACCESS_COARSE_LOCATION,
-    };
 
     private TextView statusText;
     private TextView connectionText;
@@ -75,57 +65,89 @@ public class MainActivity extends AppCompatActivity {
     private Button requestPermissionsButton;
     private TextView permissionsStatusText;
     private TextView mockLocationStatusText;
-    private Button startServiceButton;
-    private Button stopServiceButton;
     private TextView serviceStatusText;
-    private TextView serverIpEditLabel;
-    private EditText serverIpEdit;
+    private TextView targetDeviceText;
+    private Button selectDeviceButton;
 
-    private final Handler uiHandler = new Handler();
+    private BluetoothAdapter bluetoothAdapter;
+    private boolean permissionRequestInFlight;
+    private boolean permissionDeclined;
+    private boolean bluetoothEnableRequestInFlight;
+    private boolean bluetoothEnableDeclined;
+    private boolean openPickerAfterPrerequisites;
     private String appVersion = "<unknown>";
+
+    private final Handler uiHandler = new Handler(Looper.getMainLooper());
+    private final Runnable uiUpdateRunnable = new Runnable() {
+        @Override
+        public void run() {
+            updateDynamicInfo();
+            continueStartup();
+            uiHandler.postDelayed(this, 1000);
+        }
+    };
 
     private final ActivityResultLauncher<String[]> permissionLauncher =
             registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(), result -> {
-                boolean allGranted = !result.containsValue(false);
-                if (allGranted) {
-                    Toast.makeText(this, R.string.all_permissions_granted_toast, Toast.LENGTH_SHORT).show();
-                    checkMockLocationSettings();
-                } else {
+                permissionRequestInFlight = false;
+                permissionDeclined = !hasRequiredPermissions();
+                if (permissionDeclined) {
                     Toast.makeText(this, R.string.missing_permissions_toast, Toast.LENGTH_LONG).show();
                     updatePermissionsStatus();
+                    return;
                 }
+                continueStartup();
+            });
+
+    private final ActivityResultLauncher<Intent> bluetoothEnableLauncher =
+            registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
+                bluetoothEnableRequestInFlight = false;
+                bluetoothEnableDeclined = bluetoothAdapter == null || !bluetoothAdapter.isEnabled();
+                if (bluetoothEnableDeclined) {
+                    Toast.makeText(this, R.string.bluetooth_enable_required, Toast.LENGTH_LONG).show();
+                }
+                continueStartup();
             });
 
     private final ActivityResultLauncher<Intent> mockLocationSettingsLauncher =
-            registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result ->
-                    updatePermissionsStatus());
+            registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
+                updatePermissionsStatus();
+                continueStartup();
+            });
 
     private final BroadcastReceiver connectionReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            if ("dezz.gnssshare.CONNECTION_CHANGED".equals(intent.getAction())) {
-                String stateStr = intent.getStringExtra("state");
-                ConnectionManager.ConnectionState state = ConnectionManager.ConnectionState.valueOf(stateStr);
-                String serverAddress = intent.getStringExtra("serverAddress");
-                updateConnectionStatus(state, serverAddress);
+            if (!"dezz.gnssshare.CONNECTION_CHANGED".equals(intent.getAction())) {
+                return;
             }
+            String stateValue = intent.getStringExtra("state");
+            if (stateValue == null) {
+                return;
+            }
+            ConnectionManager.ConnectionState state = ConnectionManager.ConnectionState.valueOf(stateValue);
+            updateConnectionStatus(
+                    state,
+                    intent.getStringExtra("targetDescription"),
+                    intent.getStringExtra("message")
+            );
         }
     };
 
     private final BroadcastReceiver locationReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            if ("dezz.gnssshare.LOCATION_UPDATE".equals(intent.getAction())) {
-                int satellites = intent.getIntExtra("satellites", 0);
-                updateSatelliteInfo(satellites);
-
-                Location location = IntentCompat.getParcelableExtra(intent, "location", Location.class);
-                if (location != null) {
-                    String provider = intent.getStringExtra("provider");
-                    float locationAge = intent.getFloatExtra("locationAge", 0);
-
-                    updateLocationInfo(location, provider, locationAge);
-                }
+            if (!"dezz.gnssshare.LOCATION_UPDATE".equals(intent.getAction())) {
+                return;
+            }
+            updateSatelliteInfo(intent.getIntExtra("satellites", 0));
+            Location location = IntentCompat.getParcelableExtra(intent, "location", Location.class);
+            if (location != null) {
+                updateLocationInfo(
+                        location,
+                        intent.getStringExtra("provider"),
+                        intent.getFloatExtra("locationAge", 0)
+                );
             }
         }
     };
@@ -134,9 +156,10 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onReceive(Context context, Intent intent) {
             if ("dezz.gnssshare.MOCK_LOCATION_STATUS".equals(intent.getAction())) {
-                String message = intent.getStringExtra("message");
-                boolean error = intent.getBooleanExtra("error", true);
-                updateMockLocationStatus(message, error);
+                updatePermissionsStatus(
+                        intent.getStringExtra("message"),
+                        intent.getBooleanExtra("error", true)
+                );
             }
         }
     };
@@ -147,30 +170,45 @@ public class MainActivity extends AppCompatActivity {
         AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM);
         setContentView(R.layout.activity_main);
 
+        BluetoothManager bluetoothManager = getSystemService(BluetoothManager.class);
+        bluetoothAdapter = bluetoothManager == null ? null : bluetoothManager.getAdapter();
         appVersion = VersionGetter.getAppVersionName(this);
 
         initializeViews();
         registerReceivers();
-
-        // Check permissions status on startup
         updatePermissionsStatus();
+        updateServiceAndTargetStatus();
+        updateConnectionStatus(
+                GNSSClientService.getConnectionState(),
+                GNSSClientService.getTargetDescription(this),
+                GNSSClientService.getConnectionMessage()
+        );
+        continueStartup();
+    }
 
-        // Start periodic UI updates
-        startUIUpdates();
-
-        if (GNSSClientService.isServiceEnabled(this) && !GNSSClientService.isServiceRunning()) {
-            startGNSSService();
+    @Override
+    protected void onStart() {
+        super.onStart();
+        uiHandler.post(uiUpdateRunnable);
+        if (bluetoothAdapter != null && bluetoothAdapter.isEnabled()) {
+            bluetoothEnableDeclined = false;
         }
+        continueStartup();
+    }
+
+    @Override
+    protected void onStop() {
+        uiHandler.removeCallbacks(uiUpdateRunnable);
+        super.onStop();
     }
 
     @Override
     protected void onDestroy() {
-        super.onDestroy();
-
         unregisterReceiver(connectionReceiver);
         unregisterReceiver(locationReceiver);
         unregisterReceiver(mockLocationStatusReceiver);
         uiHandler.removeCallbacksAndMessages(null);
+        super.onDestroy();
     }
 
     private void initializeViews() {
@@ -186,153 +224,127 @@ public class MainActivity extends AppCompatActivity {
         requestPermissionsButton = findViewById(R.id.requestPermissionsButton);
         permissionsStatusText = findViewById(R.id.permissionsStatusText);
         mockLocationStatusText = findViewById(R.id.mockLocationStatusText);
-        serverIpEditLabel = findViewById(R.id.serverIpEditLabel);
-        serverIpEdit = findViewById(R.id.serverIpEdit);
-        startServiceButton = findViewById(R.id.startServiceButton);
-        stopServiceButton = findViewById(R.id.stopServiceButton);
         serviceStatusText = findViewById(R.id.serviceStatusText);
+        targetDeviceText = findViewById(R.id.targetDeviceText);
+        selectDeviceButton = findViewById(R.id.selectDeviceButton);
 
-        // Initialize with default values
-        updateConnectionStatus(GNSSClientService.getConnectionState(), GNSSClientService.getServerAddress());
-        dataAgeText.setText(String.format(getString(R.string.data_age_status), getString(R.string.unknown)));
+        dataAgeText.setText(String.format(
+                getString(R.string.data_age_status),
+                getString(R.string.unknown)
+        ));
+        additionalInfoText.setText(String.format(
+                "%s  %s",
+                String.format(getString(R.string.movement_speed), getString(R.string.unknown)),
+                String.format(getString(R.string.movement_bearing), getString(R.string.unknown))
+        ));
 
-        additionalInfoText.setText(
-                String.format("%s  %s",
-                        String.format(getString(R.string.movement_speed), getString(R.string.unknown)),
-                        String.format(getString(R.string.movement_bearing), getString(R.string.unknown))
-                )
-        );
-
-        boolean useGatewayIp = Preferences.useGatewayIp(this);
-        RadioButton connectToGatewayIpRadio = findViewById(R.id.connectToGatewayIpRadioButton);
-        RadioButton setIpManuallyRadio = findViewById(R.id.setIpManuallyRadioButton);
-        connectToGatewayIpRadio.setChecked(useGatewayIp);
-        connectToGatewayIpRadio.setOnClickListener(v -> {
-            Preferences.setUseGatewayIp(this, true);
-            serverIpEditLabel.setEnabled(false);
-            serverIpEdit.setEnabled(false);
+        requestPermissionsButton.setOnClickListener(view -> {
+            permissionRequestInFlight = false;
+            permissionDeclined = false;
+            requestMissingPermissions();
         });
-        setIpManuallyRadio.setChecked(!useGatewayIp);
-        setIpManuallyRadio.setOnClickListener(v -> {
-            Preferences.setUseGatewayIp(this, false);
-            serverIpEditLabel.setEnabled(true);
-            serverIpEdit.setEnabled(true);
+        selectDeviceButton.setOnClickListener(view -> {
+            openPickerAfterPrerequisites = true;
+            continueStartup();
         });
-        serverIpEditLabel.setEnabled(!useGatewayIp);
-        serverIpEdit.setEnabled(!useGatewayIp);
-        serverIpEdit.setText(Preferences.serverAddress(this));
+        findViewById(R.id.mockLocationSettingsButton).setOnClickListener(view -> checkMockLocationSettings());
+        findViewById(R.id.exportLogsButton).setOnClickListener(view -> exportLogs("gnss-client"));
 
-        // Set up permissions button click listener
-        requestPermissionsButton.setOnClickListener(v -> requestPermissions());
-
-        // Set up service control button click listeners
-        startServiceButton.setOnClickListener(v -> startGNSSService());
-        stopServiceButton.setOnClickListener(v -> stopGNSSService());
-        findViewById(R.id.exportLogsButton).setOnClickListener(v -> exportLogs("gnss-client"));
-
-        // Static jitter checkbox
         CheckBox staticJitterCheckbox = findViewById(R.id.staticJitterCheckbox);
         staticJitterCheckbox.setChecked(Preferences.staticJitterEnabled(this));
-        staticJitterCheckbox.setOnCheckedChangeListener((buttonView, isChecked) ->
-                Preferences.setStaticJitterEnabled(this, isChecked));
-
-        // Set up server IP edit text change listener
-        serverIpEdit.addTextChangedListener(new TextWatcher() {
-            @Override
-            public void afterTextChanged(Editable s) {
-                Preferences.setServerAddress(MainActivity.this, s.toString());
-            }
-
-            @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-            }
-
-            @Override
-            public void onTextChanged(CharSequence s, int start, int before, int count) {
-            }
-        });
-
-        // Initialize service status
-        updateServiceStatus(GNSSClientService.isServiceRunning());
+        staticJitterCheckbox.setOnCheckedChangeListener((buttonView, checked) ->
+                Preferences.setStaticJitterEnabled(this, checked));
     }
 
     private void registerReceivers() {
-        IntentFilter connectionFilter = new IntentFilter("dezz.gnssshare.CONNECTION_CHANGED");
-        registerReceiver(connectionReceiver, connectionFilter, RECEIVER_NOT_EXPORTED);
-
-        IntentFilter locationFilter = new IntentFilter("dezz.gnssshare.LOCATION_UPDATE");
-        registerReceiver(locationReceiver, locationFilter, RECEIVER_NOT_EXPORTED);
-
-        IntentFilter mockLocationStatusFilter = new IntentFilter("dezz.gnssshare.MOCK_LOCATION_STATUS");
-        registerReceiver(mockLocationStatusReceiver, mockLocationStatusFilter, RECEIVER_NOT_EXPORTED);
+        registerReceiver(
+                connectionReceiver,
+                new IntentFilter("dezz.gnssshare.CONNECTION_CHANGED"),
+                RECEIVER_NOT_EXPORTED
+        );
+        registerReceiver(
+                locationReceiver,
+                new IntentFilter("dezz.gnssshare.LOCATION_UPDATE"),
+                RECEIVER_NOT_EXPORTED
+        );
+        registerReceiver(
+                mockLocationStatusReceiver,
+                new IntentFilter("dezz.gnssshare.MOCK_LOCATION_STATUS"),
+                RECEIVER_NOT_EXPORTED
+        );
     }
 
-    private void startGNSSService() {
-        Intent serviceIntent = new Intent(this, GNSSClientService.class);
-        startForegroundService(serviceIntent);
-        updateServiceStatus(true);
-
-        // Update SharedPreferences immediately to reflect the intent to start
-        Preferences.setServiceEnabled(this, true);
-
-        Toast.makeText(this, getString(R.string.toast_service_enabled), Toast.LENGTH_LONG).show();
-    }
-
-    private void stopGNSSService() {
-        // Update SharedPreferences immediately to reflect the intent to stop
-        Preferences.setServiceEnabled(this, false);
-
-        Intent serviceIntent = new Intent(this, GNSSClientService.class);
-        stopService(serviceIntent);
-
-        updateServiceStatus(false);
-
-        // Reset connection status display
-        updateConnectionStatus(ConnectionManager.ConnectionState.DISCONNECTED, null);
-
-        Toast.makeText(this, getString(R.string.toast_service_disabled), Toast.LENGTH_LONG).show();
-    }
-
-    private void updateServiceStatus(boolean isServiceRunning) {
-        if (isServiceRunning) {
-            startServiceButton.setEnabled(false);
-            stopServiceButton.setEnabled(true);
-            serviceStatusText.setText(R.string.service_running);
-            serviceStatusText.setTextColor(getColor(android.R.color.holo_green_light));
-        } else {
-            startServiceButton.setEnabled(true);
-            stopServiceButton.setEnabled(false);
-            serviceStatusText.setText(R.string.service_stopped);
-            serviceStatusText.setTextColor(getColor(android.R.color.holo_red_light));
-        }
-    }
-
-    private void requestPermissions() {
-        List<String> permissionsToRequest = new ArrayList<>();
-
-        // Check which permissions are missing
-        for (String permission : REQUIRED_PERMISSIONS) {
-            if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
-                permissionsToRequest.add(permission);
+    private void continueStartup() {
+        updatePermissionsStatus();
+        updateServiceAndTargetStatus();
+        if (!hasRequiredPermissions()) {
+            if (!permissionDeclined) {
+                requestMissingPermissions();
             }
+            return;
         }
+        if (bluetoothAdapter == null) {
+            return;
+        }
+        if (!bluetoothAdapter.isEnabled()) {
+            if (!bluetoothEnableRequestInFlight && !bluetoothEnableDeclined) {
+                bluetoothEnableRequestInFlight = true;
+                bluetoothEnableLauncher.launch(new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE));
+            }
+            return;
+        }
+        bluetoothEnableDeclined = false;
 
-        if (permissionsToRequest.isEmpty()) {
-            // All permissions already granted, check mock location settings
-            checkMockLocationSettings();
-        } else {
-            // Request missing permissions
-            permissionLauncher.launch(permissionsToRequest.toArray(new String[0]));
+        if (!GNSSClientService.isServiceRunning()) {
+            ContextCompat.startForegroundService(this, new Intent(this, GNSSClientService.class));
+        }
+        if (openPickerAfterPrerequisites) {
+            openPickerAfterPrerequisites = false;
+            showBluetoothDevicePicker();
+        }
+    }
+
+    private boolean hasRequiredPermissions() {
+        return ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+                == PackageManager.PERMISSION_GRANTED
+                && ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION)
+                == PackageManager.PERMISSION_GRANTED
+                && (Build.VERSION.SDK_INT < Build.VERSION_CODES.S
+                || ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT)
+                == PackageManager.PERMISSION_GRANTED);
+    }
+
+    private void requestMissingPermissions() {
+        if (permissionRequestInFlight) {
+            return;
+        }
+        List<String> missing = new ArrayList<>();
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED) {
+            missing.add(Manifest.permission.ACCESS_FINE_LOCATION);
+        }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED) {
+            missing.add(Manifest.permission.ACCESS_COARSE_LOCATION);
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+                && ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT)
+                != PackageManager.PERMISSION_GRANTED) {
+            missing.add(Manifest.permission.BLUETOOTH_CONNECT);
+        }
+        if (!missing.isEmpty()) {
+            permissionRequestInFlight = true;
+            permissionLauncher.launch(missing.toArray(new String[0]));
         }
     }
 
     private void checkMockLocationSettings() {
-        // For mock location, we need to guide user to developer options
-        Toast.makeText(this, getString(R.string.mock_location_enable_message), Toast.LENGTH_LONG).show();
+        Toast.makeText(this, R.string.mock_location_enable_message, Toast.LENGTH_LONG).show();
         try {
-            mockLocationSettingsLauncher.launch(new Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS));
+            mockLocationSettingsLauncher.launch(
+                    new Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)
+            );
         } catch (Exception e) {
-            // Fallback to general settings
             mockLocationSettingsLauncher.launch(new Intent(Settings.ACTION_SETTINGS));
         }
     }
@@ -342,102 +354,187 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void updatePermissionsStatus(String mockLocationsErrorMessage, boolean mockLocationError) {
-        boolean allPermissionsGranted = true;
         List<String> missingPermissions = new ArrayList<>();
-
-        for (String permission : REQUIRED_PERMISSIONS) {
-            if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
-                allPermissionsGranted = false;
-                missingPermissions.add(getPermissionName(permission));
-            }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED) {
+            missingPermissions.add(getString(R.string.permission_fine_location));
+        }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED) {
+            missingPermissions.add(getString(R.string.permission_coarse_location));
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+                && ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT)
+                != PackageManager.PERMISSION_GRANTED) {
+            missingPermissions.add(getString(R.string.permission_bluetooth_connect));
         }
 
-        if (allPermissionsGranted) {
+        boolean permissionsGranted = missingPermissions.isEmpty();
+        if (permissionsGranted) {
             permissionsStatusText.setText(R.string.all_permissions_granted);
-            permissionsStatusText.setTextColor(getResources().getColor(android.R.color.holo_green_light, null));
+            permissionsStatusText.setTextColor(getColor(android.R.color.holo_green_light));
             requestPermissionsButton.setVisibility(View.GONE);
         } else {
-            String statusText = String.format(getString(R.string.missing_permissions), String.join(", ", missingPermissions));
-            permissionsStatusText.setText(statusText);
+            permissionsStatusText.setText(String.format(
+                    getString(R.string.missing_permissions),
+                    String.join(", ", missingPermissions)
+            ));
             permissionsStatusText.setTextColor(getColor(android.R.color.holo_red_light));
             requestPermissionsButton.setVisibility(View.VISIBLE);
         }
 
         boolean mockLocationEnabled = MockLocationManager.isMockLocationEnabled(getContentResolver());
-
         if (mockLocationEnabled && !mockLocationError) {
             mockLocationStatusText.setVisibility(View.GONE);
         } else {
-            if (mockLocationError) {
-                mockLocationStatusText.setText(mockLocationsErrorMessage);
-            }
+            mockLocationStatusText.setText(mockLocationError && mockLocationsErrorMessage != null
+                    ? mockLocationsErrorMessage
+                    : getString(R.string.mock_location_enable_message));
             mockLocationStatusText.setVisibility(View.VISIBLE);
         }
+        permissionsSection.setVisibility(
+                permissionsGranted && mockLocationEnabled && !mockLocationError ? View.GONE : View.VISIBLE
+        );
+    }
 
-        if (allPermissionsGranted && mockLocationEnabled && !mockLocationError) {
-            permissionsSection.setVisibility(View.GONE);
+    private void updateServiceAndTargetStatus() {
+        String address = Preferences.targetDeviceAddress(this);
+        String name = Preferences.targetDeviceName(this);
+        if (address == null || address.isBlank()) {
+            targetDeviceText.setText(R.string.target_device_not_selected);
+            selectDeviceButton.setText(R.string.select_phone);
         } else {
-            permissionsSection.setVisibility(View.VISIBLE);
+            targetDeviceText.setText(String.format(
+                    getString(R.string.target_device_selected),
+                    name == null || name.isBlank() ? address : name,
+                    address
+            ));
+            selectDeviceButton.setText(R.string.change_phone);
+        }
+
+        if (GNSSClientService.isServiceRunning()) {
+            serviceStatusText.setText(R.string.service_running);
+            serviceStatusText.setTextColor(getColor(android.R.color.holo_green_light));
+        } else if (!hasRequiredPermissions()) {
+            serviceStatusText.setText(R.string.status_waiting_for_permissions);
+            serviceStatusText.setTextColor(getColor(android.R.color.holo_red_light));
+        } else if (bluetoothAdapter == null) {
+            serviceStatusText.setText(R.string.status_bluetooth_unsupported);
+            serviceStatusText.setTextColor(getColor(android.R.color.holo_red_light));
+        } else if (!bluetoothAdapter.isEnabled()) {
+            serviceStatusText.setText(bluetoothEnableDeclined
+                    ? R.string.status_bluetooth_enable_denied
+                    : R.string.status_bluetooth_disabled);
+            serviceStatusText.setTextColor(getColor(android.R.color.holo_red_light));
+        } else {
+            serviceStatusText.setText(R.string.service_starting);
+            serviceStatusText.setTextColor(getColor(android.R.color.holo_orange_light));
         }
     }
 
-    private String getPermissionName(String permission) {
-        return switch (permission) {
-            case Manifest.permission.ACCESS_FINE_LOCATION ->
-                    getString(R.string.permission_fine_location);
-            case Manifest.permission.ACCESS_COARSE_LOCATION ->
-                    getString(R.string.permission_coarse_location);
-            default -> permission.substring(permission.lastIndexOf('.') + 1);
-        };
+    private void showBluetoothDevicePicker() {
+        if (!hasRequiredPermissions() || bluetoothAdapter == null || !bluetoothAdapter.isEnabled()) {
+            continueStartup();
+            return;
+        }
+
+        Set<BluetoothDevice> bondedDevices;
+        try {
+            bondedDevices = bluetoothAdapter.getBondedDevices();
+        } catch (SecurityException e) {
+            Log.e(TAG, "Unable to read paired Bluetooth devices", e);
+            Toast.makeText(this, R.string.bluetooth_permission_required, Toast.LENGTH_LONG).show();
+            return;
+        }
+        if (bondedDevices.isEmpty()) {
+            Toast.makeText(this, R.string.bluetooth_no_paired_devices, Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        List<BluetoothDevice> devices = new ArrayList<>(bondedDevices);
+        devices.sort(Comparator.comparing(device -> displayName(device).toLowerCase()));
+        String[] labels = devices.stream()
+                .map(device -> displayName(device) + "\n" + device.getAddress())
+                .toArray(String[]::new);
+
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.select_phone_title)
+                .setItems(labels, (dialog, which) -> {
+                    BluetoothDevice selected = devices.get(which);
+                    Preferences.setTargetDevice(this, selected.getAddress(), displayName(selected));
+                    GNSSClientService.notifyTargetChanged();
+                    updateServiceAndTargetStatus();
+                    updateConnectionStatus(
+                            GNSSClientService.getConnectionState(),
+                            GNSSClientService.getTargetDescription(this),
+                            GNSSClientService.getConnectionMessage()
+                    );
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
     }
 
-    private void updateConnectionStatus(ConnectionManager.ConnectionState state, String serverAddress) {
+    @SuppressLint("MissingPermission")
+    private String displayName(BluetoothDevice device) {
+        // Only called after hasRequiredPermissions() verifies BLUETOOTH_CONNECT on API 31+.
+        String name = device.getName();
+        return name == null || name.isBlank() ? device.getAddress() : name;
+    }
+
+    private void updateConnectionStatus(
+            ConnectionManager.ConnectionState state,
+            String targetDescription,
+            String message
+    ) {
         runOnUiThread(() -> {
-            statusText.setText(
-                    String.format(
-                            "%s %s - %s",
-                            getString(R.string.app_name),
-                            appVersion,
-                            getString(switch (state) {
-                                case CONNECTED -> R.string.connected;
-                                case CONNECTING -> R.string.connecting;
-                                case DISCONNECTED -> R.string.disconnected;
-                            })
-                    )
-            );
+            statusText.setText(String.format(
+                    "%s %s - %s",
+                    getString(R.string.app_name),
+                    appVersion,
+                    getString(switch (state) {
+                        case CONNECTED -> R.string.connected;
+                        case CONNECTING -> R.string.connecting;
+                        case DISCONNECTED -> R.string.disconnected;
+                    })
+            ));
+
             switch (state) {
                 case CONNECTED -> {
-                    connectionText.setText(
-                            String.format(getString(R.string.connection_status),
-                                    String.format(getString(R.string.connection_status_connected), serverAddress))
-                    );
+                    connectionText.setText(String.format(
+                            getString(R.string.connection_status_connected),
+                            targetDescription == null ? getString(R.string.unknown) : targetDescription
+                    ));
                     connectionText.setTextColor(getColor(android.R.color.holo_green_light));
                 }
-
                 case CONNECTING -> {
-                    connectionText.setText(
-                            String.format(getString(R.string.connection_status),
-                                    String.format(getString(R.string.connection_status_connecting),
-                                            serverAddress == null ? getString(R.string.unknown) : serverAddress))
-                    );
+                    connectionText.setText(String.format(
+                            getString(R.string.connection_status_connecting),
+                            targetDescription == null ? getString(R.string.unknown) : targetDescription
+                    ));
                     connectionText.setTextColor(getColor(android.R.color.holo_orange_light));
                 }
-
                 case DISCONNECTED -> {
-                    connectionText.setText(
-                            String.format(getString(R.string.connection_status),
-                                    getString(R.string.connection_status_disconnected))
-                    );
+                    connectionText.setText(message == null || message.isBlank()
+                            ? getString(R.string.connection_status_disconnected)
+                            : message);
                     connectionText.setTextColor(getColor(android.R.color.holo_red_light));
                 }
             }
 
             if (state != ConnectionManager.ConnectionState.CONNECTED) {
-                // Clear location info when disconnected
-                locationText.setText(String.format(getString(R.string.location_status), getString(R.string.unknown)));
+                locationText.setText(String.format(
+                        getString(R.string.location_status),
+                        getString(R.string.unknown)
+                ));
                 satellitesText.setText(String.format(getString(R.string.satellites_status), 0));
-                providerText.setText(String.format(getString(R.string.provider_status), getString(R.string.unknown)));
-                ageText.setText(String.format(getString(R.string.age_status), getString(R.string.unknown)));
+                providerText.setText(String.format(
+                        getString(R.string.provider_status),
+                        getString(R.string.unknown)
+                ));
+                ageText.setText(String.format(
+                        getString(R.string.age_status),
+                        getString(R.string.unknown)
+                ));
             }
         });
     }
@@ -448,196 +545,152 @@ public class MainActivity extends AppCompatActivity {
 
     private void updateLocationInfo(Location location, String provider, float locationAge) {
         runOnUiThread(() -> {
-            // Location coordinates
-            StringBuilder locationBuilder = new StringBuilder();
-
-            locationBuilder.append(
-                    String.format(getString(R.string.location_status),
-                            String.format(getString(R.string.location_format),
-                                    location.getLatitude(),
-                                    location.getLongitude()
-                            )
+            StringBuilder locationBuilder = new StringBuilder(String.format(
+                    getString(R.string.location_status),
+                    String.format(
+                            getString(R.string.location_format),
+                            location.getLatitude(),
+                            location.getLongitude()
                     )
-            );
-
+            ));
             if (location.hasAltitude()) {
-                locationBuilder.append(
-                        String.format(getString(R.string.altitude_format), location.getAltitude())
-                );
+                locationBuilder.append(String.format(
+                        getString(R.string.altitude_format),
+                        location.getAltitude()
+                ));
             }
-
             if (location.hasAccuracy()) {
-                locationBuilder.append(
-                        String.format(getString(R.string.location_accuracy_format), location.getAccuracy())
-                );
+                locationBuilder.append(String.format(
+                        getString(R.string.location_accuracy_format),
+                        location.getAccuracy()
+                ));
             }
-
             locationText.setText(locationBuilder.toString());
+            providerText.setText(String.format(
+                    getString(R.string.provider_status),
+                    provider == null ? getString(R.string.unknown) : provider
+            ));
+            ageText.setText(String.format(
+                    getString(R.string.age_status),
+                    String.format(getString(R.string.age_format), locationAge)
+            ));
 
-            // Provider
-            providerText.setText(
-                    String.format(
-                            getString(R.string.provider_status),
-                            (provider != null ? provider : getString(R.string.unknown))
-                    )
-            );
-
-            // Age
-            ageText.setText(
-                    String.format(
-                            getString(R.string.age_status),
-                            String.format(getString(R.string.age_format), locationAge)
-                    )
-            );
-
-            // Additional info
             StringBuilder additionalInfo = new StringBuilder();
             if (location.hasSpeed()) {
-                additionalInfo.append(
-                        String.format(getString(R.string.movement_speed),
-                                String.format(getString(R.string.speed_format), location.getSpeed())
-                        )
-                );
+                additionalInfo.append(String.format(
+                        getString(R.string.movement_speed),
+                        String.format(getString(R.string.speed_format), location.getSpeed())
+                ));
             }
             if (location.hasBearing()) {
                 if (additionalInfo.length() > 0) {
                     additionalInfo.append("  ");
                 }
-                additionalInfo.append(
-                        String.format(getString(R.string.movement_bearing),
-                                String.format(getString(R.string.bearing_format), location.getBearing())
-                        )
-                );
+                additionalInfo.append(String.format(
+                        getString(R.string.movement_bearing),
+                        String.format(getString(R.string.bearing_format), location.getBearing())
+                ));
             }
-
             if (additionalInfo.length() > 0) {
                 additionalInfoText.setText(additionalInfo.toString());
             }
         });
     }
 
-    private void updateMockLocationStatus(String message, boolean error) {
-        runOnUiThread(() -> updatePermissionsStatus(message, error));
-    }
-
-    private void startUIUpdates() {
-        // Update UI every second to show connection age and other dynamic info
-        uiHandler.postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                updateDynamicInfo();
-                uiHandler.postDelayed(this, 1000); // Update every second
-            }
-        }, 1000);
-    }
-
     private void updateDynamicInfo() {
         if (!GNSSClientService.isServiceRunning()) {
             return;
         }
-
-        long lastUpdateTime = GNSSClientService.getLastUpdateTime();
-        if (lastUpdateTime > 0) {
-            long ageSeconds = (System.currentTimeMillis() - lastUpdateTime) / 1000;
-
-            runOnUiThread(() -> {
-                if (dataAgeText != null) {
-                    if (ageSeconds < 60) {
-                        dataAgeText.setText(
-                                String.format(
-                                        getString(R.string.data_age_status),
-                                        String.format(
-                                                getString(R.string.data_age_format_s),
-                                                ageSeconds
-                                        )
-                                )
-                        );
-
-                    } else {
-                        dataAgeText.setText(
-                                String.format(getString(R.string.data_age_status),
-                                        String.format(
-                                                getString(R.string.data_age_format_ms), ageSeconds / 60, ageSeconds % 60)
-                                )
-                        );
-                    }
-
-                    if (ageSeconds < 10) {
-                        dataAgeText.setTextColor(getColor(android.R.color.holo_green_light));
-                    } else {
-                        dataAgeText.setTextColor(getColor(android.R.color.holo_red_light));
-                    }
-                }
-            });
+        long updateTime = GNSSClientService.getLastUpdateTime();
+        if (updateTime <= 0) {
+            return;
         }
+        long ageSeconds = (System.currentTimeMillis() - updateTime) / 1000;
+        if (ageSeconds < 60) {
+            dataAgeText.setText(String.format(
+                    getString(R.string.data_age_status),
+                    String.format(getString(R.string.data_age_format_s), ageSeconds)
+            ));
+        } else {
+            dataAgeText.setText(String.format(
+                    getString(R.string.data_age_status),
+                    String.format(
+                            getString(R.string.data_age_format_ms),
+                            ageSeconds / 60,
+                            ageSeconds % 60
+                    )
+            ));
+        }
+        dataAgeText.setTextColor(getColor(
+                ageSeconds < 10 ? android.R.color.holo_green_light : android.R.color.holo_red_light
+        ));
     }
 
-    /**
-     * Export logs to a file and share it
-     */
     private void exportLogs(String appName) {
-        // Show progress
-        Toast.makeText(this, dezz.gnssshare.logexporter.R.string.export_logs_in_progress, Toast.LENGTH_SHORT).show();
-
-        // Run in background to avoid blocking UI
+        Toast.makeText(
+                this,
+                dezz.gnssshare.logexporter.R.string.export_logs_in_progress,
+                Toast.LENGTH_SHORT
+        ).show();
         new Thread(() -> {
             try {
-                // Export logs to a file
                 File logFile = LogExporter.exportLogs(this, appName);
-
-                // Clean up old logs
                 LogExporter.cleanupOldLogs(this, appName);
-
-                // Update UI on main thread
                 runOnUiThread(() -> {
                     if (logFile != null) {
-                        // Share the log file
                         shareLogFile(logFile);
-                        Toast.makeText(this, dezz.gnssshare.logexporter.R.string.export_logs_success, Toast.LENGTH_SHORT).show();
+                        Toast.makeText(
+                                this,
+                                dezz.gnssshare.logexporter.R.string.export_logs_success,
+                                Toast.LENGTH_SHORT
+                        ).show();
                     } else {
-                        Toast.makeText(this, dezz.gnssshare.logexporter.R.string.export_logs_no_logs, Toast.LENGTH_SHORT).show();
+                        Toast.makeText(
+                                this,
+                                dezz.gnssshare.logexporter.R.string.export_logs_no_logs,
+                                Toast.LENGTH_SHORT
+                        ).show();
                     }
                 });
-
             } catch (Exception e) {
                 Log.e(TAG, "Error exporting logs", e);
-                runOnUiThread(() ->
-                        Toast.makeText(this,
-                                String.format(getString(dezz.gnssshare.logexporter.R.string.export_logs_error), e.getMessage()),
-                                Toast.LENGTH_LONG).show()
-                );
+                runOnUiThread(() -> Toast.makeText(
+                        this,
+                        String.format(
+                                getString(dezz.gnssshare.logexporter.R.string.export_logs_error),
+                                e.getMessage()
+                        ),
+                        Toast.LENGTH_LONG
+                ).show());
             }
         }).start();
     }
 
-    /**
-     * Share the log file using an intent
-     */
     private void shareLogFile(File logFile) {
         try {
-            // Get URI using FileProvider
             Uri fileUri = FileProvider.getUriForFile(
                     this,
                     getPackageName() + ".fileprovider",
                     logFile
             );
-
-            // Create share intent
-            Intent shareIntent = new Intent(Intent.ACTION_SEND);
-            shareIntent.setType("text/plain");
-            shareIntent.putExtra(Intent.EXTRA_STREAM, fileUri);
-            shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-
-            // Start the share activity
+            Intent shareIntent = new Intent(Intent.ACTION_SEND)
+                    .setType("text/plain")
+                    .putExtra(Intent.EXTRA_STREAM, fileUri)
+                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
             startActivity(Intent.createChooser(
                     shareIntent,
                     getString(dezz.gnssshare.logexporter.R.string.share_logs)
             ));
         } catch (Exception e) {
             Log.e(TAG, "Error sharing log file", e);
-            Toast.makeText(this,
-                    String.format(getString(dezz.gnssshare.logexporter.R.string.export_logs_error), e.getMessage()),
-                    Toast.LENGTH_LONG).show();
+            Toast.makeText(
+                    this,
+                    String.format(
+                            getString(dezz.gnssshare.logexporter.R.string.export_logs_error),
+                            e.getMessage()
+                    ),
+                    Toast.LENGTH_LONG
+            ).show();
         }
     }
 }

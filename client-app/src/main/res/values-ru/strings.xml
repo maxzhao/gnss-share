@@ -1,27 +1,9 @@
-<!--
-  ~ Copyright © 2025-2026 Dezz (https://github.com/DezzK)
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
-
 <resources>
     <string name="app_name">GPS клиент</string>
     <string name="connection_status_title">Статус подключения</string>
     <string name="connected">Подключено</string>
     <string name="connecting">Подключение…</string>
     <string name="disconnected">Отключено</string>
-    <string name="connection_status">%s</string>
     <string name="connection_status_connected">✓ Подключено к %s</string>
     <string name="connection_status_connecting">Подключение к %s…</string>
     <string name="connection_status_disconnected">✗ Нет подключения</string>
@@ -31,53 +13,63 @@
 
     <string name="permission_title">Разрешения</string>
     <string name="checking_permissions">Проверка разрешений…</string>
-    <string name="request_permissions">Запросить все разрешения</string>
+    <string name="request_permissions">Запросить разрешения</string>
     <string name="all_permissions_granted">✓ Все разрешения предоставлены</string>
-    <string name="all_permissions_granted_toast">Все разрешения предоставлены!</string>
-    <string name="missing_permissions_toast">Некоторые разрешения не предоставлены. Приложение может работать некорректно.</string>
+    <string name="missing_permissions_toast">Необходимые разрешения не предоставлены</string>
     <string name="missing_permissions">Отсутствуют: %s</string>
-    <string name="mock_location_enable_message">Пожалуйста, включите "Фиктивные местоположения" в настройках разработчика и выберите это приложение</string>
-    <string name="mock_location_permission_denied">Доступ к фиктивным местоположениям запрещен - проверьте настройки разработчика</string>
-    <string name="mock_location_setup_failed">Ошибка настройки фиктивного местоположения: %s</string>
-    <string name="mock_location_provider_ready">✓ Фиктивный провайдер местоположения готов</string>
-
     <string name="permission_fine_location">Точное местоположение</string>
     <string name="permission_coarse_location">Приблизительное местоположение</string>
+    <string name="permission_bluetooth_connect">Устройства поблизости</string>
+    <string name="mock_location_enable_message">Включите фиктивные местоположения в настройках разработчика и выберите это приложение</string>
+    <string name="mock_location_permission_denied">Доступ к фиктивным местоположениям запрещен</string>
+    <string name="mock_location_setup_failed">Ошибка настройки фиктивного местоположения: %s</string>
+    <string name="open_mock_location_settings">Открыть настройки разработчика</string>
+
+    <string name="phone_binding_title">Сопряжённый телефон</string>
+    <string name="target_device_not_selected">Телефон не выбран. Сначала выполните сопряжение в настройках Android.</string>
+    <string name="target_device_selected">%1$s
+%2$s</string>
+    <string name="select_phone">Выбрать телефон</string>
+    <string name="change_phone">Сменить телефон</string>
+    <string name="select_phone_title">Выберите сопряжённый телефон</string>
+    <string name="bluetooth_permission_required">Требуется разрешение Bluetooth</string>
+    <string name="bluetooth_no_paired_devices">Нет сопряжённых устройств. Сначала выполните сопряжение в настройках Android.</string>
+    <string name="bluetooth_enable_required">Для получения GNSS требуется Bluetooth.</string>
+
+    <string name="service_status_title">Статус фоновой службы</string>
+    <string name="service_running">✓ Служба запущена</string>
+    <string name="service_starting">Запуск службы…</string>
+    <string name="status_waiting_for_permissions">Ожидание необходимых разрешений</string>
+    <string name="status_bluetooth_unsupported">Классический Bluetooth не поддерживается</string>
+    <string name="status_bluetooth_disabled">Bluetooth выключен</string>
+    <string name="status_bluetooth_enable_denied">Bluetooth необходим; включите его и снова откройте приложение</string>
+    <string name="status_select_phone">Выберите сопряжённый телефон</string>
+    <string name="status_target_unavailable">Сохранённый телефон недоступен; выполните сопряжение снова или выберите другой</string>
+    <string name="status_connecting_saved_phone">Подключение к сохранённому телефону</string>
+    <string name="status_connection_failed_retrying">Ошибка подключения; повторная попытка</string>
+    <string name="status_connection_lost_retrying">Соединение потеряно; повторная попытка</string>
+    <string name="status_server_response_timeout">Истекло время ожидания ответа сервера; повторная попытка</string>
+    <string name="status_receiving_gnss">Получение данных GNSS</string>
+    <string name="status_shutting_down">Завершение работы</string>
 
     <string name="location_information_title">Информация о местоположении</string>
     <string name="location_status">Местоположение: %s</string>
     <string name="altitude_format">" (%.1fм)"</string>
     <string name="location_accuracy_format">" ±%.1fм"</string>
     <string name="provider_status">Провайдер: %s</string>
-    <string name="satellites_status">Спутников: %d</string>
+    <string name="satellites_status">Спутники: %d</string>
     <string name="age_status">Возраст: %s</string>
     <string name="age_format">%.1fс</string>
     <string name="movement_speed">Скорость: %s</string>
     <string name="speed_format">%.1f м/с</string>
     <string name="movement_bearing">Азимут: %s</string>
-
     <string name="unknown">неизвестно</string>
 
-    <string name="select_server_address_title">Адрес сервера</string>
-    <string name="connect_to_gateway_ip">Использовать IP точки доступа</string>
-    <string name="set_hostname_or_ip_address_manually">Ввести имя хоста или IP адрес вручную</string>
-    <string name="editServerIp">Имя сервера или IP адрес</string>
-
-    <string name="service_status_title">Статус фоновой службы</string>
-    <string name="service_running">✓ Служба запущена</string>
-    <string name="service_stopped">✗ Служба остановлена</string>
-    <string name="enable_service">Старт</string>
-    <string name="disable_service">Стоп</string>
-    <string name="toast_service_enabled">GPS Клиент включен - будет запускаться автоматически</string>
-    <string name="toast_service_disabled">GPS Клиент отключен - не будет запускаться автоматически</string>
-
-    <string name="static_jitter">Добавлять дрожание на месте (скрывает рекламу в некоторых навигаторах)</string>
-
+    <string name="static_jitter">Добавлять дрожание на месте</string>
     <string name="notification_title_disconnected">%s - Нет подключения</string>
     <string name="notification_title_connected">%s - Подключено</string>
-    <string name="notification_text_disconnected">Попытка подключения к GPS серверу</string>
-    <string name="notification_text_connected">Получение данных о местоположении | Возраст: %.1fс</string>
+    <string name="notification_text_disconnected">Ожидание или переподключение к сохранённому телефону</string>
+    <string name="notification_text_connected">Получение данных | Возраст: %.1fс</string>
     <string name="notification_text_connected_no_age">Получение данных о местоположении</string>
-    <string name="notification_text_location_format">Широта: %1$.6f, Долгота: %2$.6f</string>
     <string name="notification_channel_description">%s Служба местоположения</string>
 </resources>

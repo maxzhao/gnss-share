@@ -1,73 +1,62 @@
-<!--
-  ~ Copyright © 2025-2026 Dezz (https://github.com/DezzK)
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
-
 <resources>
     <string name="app_name">GPS сервер</string>
     <string name="app_description">Сервер передачи данных о местоположении</string>
 
     <string name="notification_title">%s работает</string>
-    <string name="notification_failed_title">%s ошибка запуска</string>
-    <string name="notification_clients">Подключений: %d</string>
-    <string name="notification_no_clients">Нет подключенных клиентов</string>
     <string name="notification_satellites">Спутников: %d</string>
     <string name="notification_gnss_inactive">Передача местоположений не активна</string>
     <string name="notification_age">Возраст: %.1fс</string>
 
     <string name="service_status_title">Статус фоновой службы</string>
-    <string name="service_running">✓ Служба запущена</string>
-    <string name="service_stopped">✕ Служба остановлена</string>
+    <string name="service_starting">Запуск службы…</string>
+    <string name="service_stopped">Служба не запущена</string>
+    <string name="status_waiting_for_permissions">Ожидание необходимых разрешений</string>
+    <string name="status_bluetooth_permission_required">Требуется разрешение Bluetooth</string>
+    <string name="status_bluetooth_unsupported">Классический Bluetooth не поддерживается</string>
+    <string name="status_bluetooth_disabled">Bluetooth выключен</string>
+    <string name="status_bluetooth_enable_denied">Bluetooth необходим; включите его и снова откройте приложение</string>
+    <string name="status_select_tablet">Требуется настройка: выберите сопряжённый планшет</string>
+    <string name="status_target_unavailable">Сохранённый планшет недоступен; выполните сопряжение снова или выберите другой</string>
+    <string name="status_target_changing">Применение выбранного планшета</string>
+    <string name="status_waiting_for_tablet">Ожидание сохранённого планшета</string>
+    <string name="status_tablet_connected">Сохранённый планшет подключён</string>
+    <string name="status_location_permission_required">Требуется разрешение местоположения</string>
+    <string name="status_listen_failed">Ошибка Bluetooth-сервера: %s</string>
 
     <string name="permission_title">Разрешения</string>
     <string name="checking_permissions">Проверка разрешений…</string>
-    <string name="request_permissions">Запросить все разрешения</string>
+    <string name="request_permissions">Запросить разрешения</string>
     <string name="all_permissions_granted">✓ Все разрешения предоставлены</string>
-    <string name="all_permissions_granted_toast">Все разрешения предоставлены!</string>
-    <string name="missing_permissions_toast">Некоторые разрешения не предоставлены. Приложение может работать некорректно.</string>
+    <string name="missing_permissions_toast">Необходимые разрешения не предоставлены</string>
     <string name="missing_permissions">Отсутствуют: %s</string>
     <string name="permission_fine_location">Точное местоположение</string>
     <string name="permission_coarse_location">Приблизительное местоположение</string>
     <string name="permission_background_location">Постоянный доступ к местоположению</string>
+    <string name="permission_bluetooth_connect">Устройства поблизости</string>
 
-    <!-- Bluetooth Settings -->
-    <string name="bluetooth_settings_title">Автостарт/стоп по Bluetooth</string>
-    <string name="bluetooth_settings_description">Автоматически запускать GNSS-сервер при подключении одного из указанных Bluetooth-устройств и останавливать при отключении всех.</string>
-    <string name="bluetooth_auto_start_enabled">Включить автоматический запуск/остановку по Bluetooth</string>
-    <string name="add_bluetooth_device">Добавить Bluetooth-устройство</string>
+    <string name="tablet_binding_title">Сопряжённый планшет</string>
+    <string name="target_device_not_selected">Планшет не выбран. Сначала выполните сопряжение в настройках Android.</string>
+    <string name="target_device_selected">%1$s
+%2$s</string>
+    <string name="select_tablet">Выбрать планшет</string>
+    <string name="change_tablet">Сменить планшет</string>
+    <string name="select_tablet_title">Выберите сопряжённый планшет</string>
     <string name="bluetooth_permission_required">Требуется разрешение Bluetooth</string>
-    <string name="bluetooth_no_paired_devices">Bluetooth-устройства не найдены</string>
-    <string name="bluetooth_add_device_title">Добавить устройство-триггер</string>
-    <string name="bluetooth_all_devices_added">Все сопряжённые устройства уже добавлены</string>
+    <string name="bluetooth_no_paired_devices">Нет сопряжённых устройств. Сначала выполните сопряжение в настройках Android.</string>
+    <string name="bluetooth_enable_required">Для передачи GNSS требуется Bluetooth.</string>
 
-    <!-- Fused Location Settings -->
     <string name="fused_location_settings_title">Fused Location Provider</string>
     <string name="fused_location_settings_description">Использовать Google Fused Location Provider для повышения точности определения местоположения за счёт комбинирования данных GPS, Wi-Fi и сотовых вышек.</string>
     <string name="fused_location_enabled">Использовать Fused Location Provider</string>
     <string name="fused_location_not_supported">Требуется Android 12+ с Google Play Services</string>
 
-    <string name="enable_service">Старт</string>
-    <string name="disable_service">Стоп</string>
-    <string name="toast_service_enabled">Фоновая служба включена - будет запускаться автоматически</string>
-    <string name="toast_service_disabled">Фоновая служба отключена - не будет запускаться автоматически</string>
-
-    <string name="technical_details_title">Детали подключения</string>
-    <string name="technical_details">• Доступные сетевые интерфейсы для подключения клиентов (включите точку доступа Wi-Fi, чтобы увидеть её IP-адрес):\n%s• Порт сервера: 8887 (TCP)</string>
-    <string name="interface_hotspot">Точка доступа Wi-Fi</string>
-    <string name="interface_none">нет</string>
     <string name="instructions_title">Инструкция по настройке</string>
     <string name="instructions_toggle">Свернуть/развернуть инструкцию</string>
-    <string name="instructions">1. Включите необходимые разрешения:\n    • Предоставьте все запрошенные выше разрешения\n    • Включите \'Разрешить всё время\' для доступа к местоположению\n    • Разрешите приложению GPS Сервер запуск в фоновом режиме\n    • Отключите оптимизацию батареи для данного приложения, чтобы избежать остановок передачи данных GPS и частых разрывов соединения\n\n2. Включите точку доступа Wi-Fi\n\n3. Запустите GPS сервер:\n    • Вернитесь в это приложение и нажмите \'Включить\'\n    • Служба будет работать в фоновом режиме с постоянным уведомлением\n\n4. Подключите клиентское устройство:\n    • Установите приложение GPS Клиент на головное устройство автомобиля\n    • Через меню разработчика укажите приложение GPS клиент в качестве поставщика фиктивных местоположений\n    • Запустите приложение GPS клиент и выдайте все необходимые разрешения\n    • На головном устройстве автомобиля подключитесь к созданной точке доступа\n    • Запустите службу приложения GPS Клиент и убедитесь, что оно смогло подключиться к серверу\n    • Служба будет работать в фоне и показывать постоянное уведомление (если уведомления поддерживаются ОС головного устройства)</string>
+    <string name="instructions">1. Выполните сопряжение телефона и планшета в настройках Bluetooth Android.
+
+2. Предоставьте разрешения местоположения и устройств поблизости.
+
+3. Выберите сопряжённый планшет выше.
+
+4. Откройте приложение на планшете и выберите этот телефон. Службы запускаются и переподключаются автоматически после открытия приложений.</string>
 </resources>
