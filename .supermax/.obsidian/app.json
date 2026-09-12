@@ -1,0 +1,8 @@
+{
+  "vaultName": "smx-knowledge::gnss-share::8a638db9",
+  "managedBy": "project-admin",
+  "note": "Commit stable shared config only. Local workspace/cache state must stay ignored.",
+  "userIgnoreFilters": [
+    "upload/"
+  ]
+}

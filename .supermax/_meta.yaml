@@ -1,0 +1,17 @@
+name: smx-knowledge::gnss-share::8a638db9
+schema_version: 1
+supermax_schema_version: 1
+project_root: <PROJECT_ROOT>
+vault_root: .supermax
+created: 2026-09-12T13:14:41Z
+updated: 2026-09-12T13:14:41Z
+status: active
+index_mode: manual-curated
+source_layer: root
+wiki_root: wiki
+sync_mode: syncthing
+syncthing_folder_id: smx-knowledge-gnss-share-8a638db9
+notes:
+  - project-root-vault
+  - explicit-vault-target-required
+  - graph-ops-must-not-fallback-to-default-vault
