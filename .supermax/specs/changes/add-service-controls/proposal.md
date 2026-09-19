@@ -1,16 +1,17 @@
 ---
 title: 为客户端和服务端增加快捷设置与界面服务开关
 created: 2026-09-13
-updated: 2026-09-13
+updated: 2026-09-19
 doc_role: change-proposal
 authority: proposed
-status: draft
-accepted_at:
-merged_to: []
+status: accepted
+accepted_at: 2026-09-19
+merged_to:
+  - .supermax/specs/service-controls/spec.md
 validation:
   automated: passed
-  human: not-run
-archive_state:
+  human: passed
+archive_state: retained
 change_id: add-service-controls
 capability: service-controls
 sources:
@@ -28,6 +29,8 @@ sources:
   - https://developer.android.com/develop/ui/views/quicksettings-tiles
   - https://developer.android.com/develop/background-work/services/fgs/restrictions-bg-start
 confidence: high
+taskadmin_tag: master
+taskadmin_id: 1
 ---
 
 # Proposal: add-service-controls
@@ -109,4 +112,5 @@ confidence: high
 
 - Implementation: complete for both applications, including robust lifecycle-published cross-process Tile state and secure-lock authentication gating for inactive Tile startup; no stable-spec merge or archive performed.
 - Automated/static evidence: focused `ANDROID_HOME="$HOME/Android/Sdk" ANDROID_SDK_ROOT="$HOME/Android/Sdk" ./gradlew :server-app:compileDebugJavaWithJavac :client-app:compileDebugJavaWithJavac :server-app:lintDebug :client-app:lintDebug` passed (`BUILD SUCCESSFUL`, 98 actionable tasks); the focused cross-process lifecycle-state proof verified symmetric `AtomicFile` PID write/read/delete, foreground-create/destruction publication order, refresh after both transitions, and no connection/GNSS mapping; final `ANDROID_HOME="$HOME/Android/Sdk" ANDROID_SDK_ROOT="$HOME/Android/Sdk" ./gradlew :server-app:compileDebugJavaWithJavac :client-app:compileDebugJavaWithJavac :server-app:lintDebug :client-app:lintDebug assembleDebug && git --no-pager diff --check && test -z "$(git --no-pager diff -- proto/location.proto)"` passed (`BUILD SUCCESSFUL`, 143 actionable tasks; `final-validation: passed`).
-- Human validation: not run; target phone/tablet scenarios remain required, so this proposal remains `status: draft`.
+- Human validation: passed; the user confirmed the corrected existing specification and its target-device behavior were manually reviewed on 2026-09-19.
+- Lifecycle: accepted and merged into `.supermax/specs/service-controls/spec.md`; this workspace is retained as change evidence.

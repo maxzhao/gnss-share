@@ -1,0 +1,7 @@
+name: Converge post-init specifications
+description: Promote reviewed changes to stable specs and capture omitted behavior as draft deltas
+status: done
+priority: high
+dependencies: []
+created: "2026-09-19T13:42:10.000Z"
+updated: "2026-09-19T13:55:07.000Z"

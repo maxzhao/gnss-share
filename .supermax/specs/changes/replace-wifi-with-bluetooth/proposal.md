@@ -1,18 +1,19 @@
 ---
 title: 将 GNSS 传输从 Wi-Fi/TCP 替换为一对一蓝牙
 created: 2026-09-12
-updated: 2026-09-12
+updated: 2026-09-19
 doc_role: change-proposal
 authority: proposed
-status: draft
-accepted_at:
-merged_to: []
+status: accepted
+accepted_at: 2026-09-19
+merged_to:
+  - .supermax/specs/gnss-bluetooth-sharing/spec.md
 superseded_in_part_by:
   - .supermax/specs/changes/add-service-controls/proposal.md
 validation:
   automated: passed
-  human: not-run
-archive_state:
+  human: passed
+archive_state: retained
 change_id: replace-wifi-with-bluetooth
 capability: gnss-bluetooth-sharing
 sources:
@@ -22,6 +23,8 @@ sources:
   - client-app/src/main/java/dezz/gnssshare/client/GNSSClientService.java
   - proto/location.proto
 confidence: high
+taskadmin_tag: master
+taskadmin_id: 1
 ---
 
 # Proposal: replace-wifi-with-bluetooth
@@ -92,7 +95,8 @@ confidence: high
 - Automated: `ANDROID_HOME="$HOME/Android/Sdk" ANDROID_SDK_ROOT="$HOME/Android/Sdk" ./gradlew clean assembleDebug lintDebug` passed on 2026-09-12.
 - Static: `git --no-pager diff --check` and removed Wi-Fi/TCP/boot/manual-control reference scan passed.
 - Independent code review: no remaining high/medium-severity implementation findings.
-- Human: not run; all target-device acceptance scenarios remain required before stable acceptance.
+- Human: passed; the user confirmed the existing specification and its target-device acceptance behavior were manually reviewed on 2026-09-19.
+- Lifecycle: accepted and merged into `.supermax/specs/gnss-bluetooth-sharing/spec.md`; this workspace is retained as change evidence.
 
 ## Source Trace
 

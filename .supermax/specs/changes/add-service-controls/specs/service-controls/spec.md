@@ -1,17 +1,18 @@
 ---
 title: 客户端与服务端服务控制增量规格
 created: 2026-09-13
-updated: 2026-09-13
+updated: 2026-09-19
 type: source
 doc_role: spec
 authority: proposed
-status: draft
-accepted_at:
-merged_to: []
+status: accepted
+accepted_at: 2026-09-19
+merged_to:
+  - .supermax/specs/service-controls/spec.md
 validation:
   automated: passed
-  human: not-run
-archive_state:
+  human: passed
+archive_state: retained
 change_id: add-service-controls
 capability: service-controls
 sources:
@@ -29,6 +30,8 @@ sources:
   - client-app/src/main/java/dezz/gnssshare/client/GNSSClientTileService.java
   - client-app/src/main/java/dezz/gnssshare/client/ServiceControl.java
 confidence: high
+taskadmin_tag: master
+taskadmin_id: 1
 ---
 
 # Delta Spec: service-controls
@@ -282,4 +285,5 @@ Reason: the earlier Bluetooth change intentionally removed manual controls, but 
 ## Validation Evidence
 
 - Automated/static: passed — focused `ANDROID_HOME="$HOME/Android/Sdk" ANDROID_SDK_ROOT="$HOME/Android/Sdk" ./gradlew :server-app:compileDebugJavaWithJavac :client-app:compileDebugJavaWithJavac :server-app:lintDebug :client-app:lintDebug` passed (`BUILD SUCCESSFUL`, 98 actionable tasks); the cross-process lifecycle-state proof verified symmetric `AtomicFile` PID write/read/delete, foreground-create/destruction publication order, refresh after both transitions, and no connection/GNSS mapping; final `ANDROID_HOME="$HOME/Android/Sdk" ANDROID_SDK_ROOT="$HOME/Android/Sdk" ./gradlew :server-app:compileDebugJavaWithJavac :client-app:compileDebugJavaWithJavac :server-app:lintDebug :client-app:lintDebug assembleDebug && git --no-pager diff --check && test -z "$(git --no-pager diff -- proto/location.proto)"` passed (`BUILD SUCCESSFUL`, 143 actionable tasks; `final-validation: passed`).
-- Human/device: prior target-device execution exposed stale Tile visual state under the removed `getRunningServices()` implementation; the corrected atomic PID-marker synchronization has not yet been rerun on devices. Tile lifecycle publication/refresh, secure-lock authentication/cancellation, post-unlock state re-check, process-state routing and foreground-service behavior therefore remain `not-run` for the corrected build, and this delta stays `status: draft`, `merged_to: []`, and unarchived.
+- Human/device: passed；用户于 2026-09-19 确认修正后的既有规格及目标设备行为已经人工审核通过。
+- Lifecycle: accepted；已合并到 `.supermax/specs/service-controls/spec.md`，原路径保留为变更证据。

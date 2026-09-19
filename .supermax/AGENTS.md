@@ -4,8 +4,8 @@
 
 ## Project Scope
 
-- Purpose: Share smartphone GNSS location data with an Android car multimedia client over a Wi-Fi hotspot TCP connection.
-- Ownership boundary: Android server/client applications, their shared Android library, and the shared Protocol Buffers location schema in this repository.
+- Purpose: Share smartphone GNSS and inertially estimated location data with an Android car multimedia client over a one-to-one secure Bluetooth Classic RFCOMM connection.
+- Ownership boundary: Android server/client applications, the server-only native inertial filter integration, their shared Android library, and the shared Protocol Buffers location schema in this repository.
 
 ## Project Root
 
@@ -14,9 +14,9 @@
 ## Repository Map And Agent Routing
 
 - Start with `settings.gradle`, root `build.gradle`, and `gradle/libs.versions.toml` for module membership, versions, repositories, and dependency policy.
-- `server-app/` owns smartphone GNSS collection, foreground-service lifecycle, TCP serving, and related UI. Its manifest and module `build.gradle` are authoritative for Android integration and build configuration.
-- `client-app/` owns connection/reconnection, received-location handling, mock-location publication, and client UI. Its manifest and module `build.gradle` are authoritative for Android integration and build configuration.
-- `shared/` owns Android code and resources reused by both applications; inspect concrete classes before changing shared behavior.
+- `server-app/` owns smartphone GNSS/Fused collection, inertial estimation, foreground-service lifecycle, authorized RFCOMM serving, and related UI. Its manifest and module `build.gradle` are authoritative for Android integration and build configuration; `src/main/cpp/` owns the server-only native filter/JNI build.
+- `client-app/` owns RFCOMM connection/reconnection, received-location handling, mock-location publication, foreground-service control, and client UI. Its manifest and module `build.gradle` are authoritative for Android integration and build configuration.
+- `shared/` owns Android code and resources reused by both applications, including the RFCOMM service/framing constants; inspect concrete classes before changing shared behavior.
 - `proto/location.proto` is the source of truth for the wire message schema consumed by both application modules. Generated protobuf output under build directories is not source.
 - `.github/workflows/release.yml` is the source of truth for release automation. `.gradle/`, module/root `build/`, IDE state, and `local.properties` are local or generated rather than source.
 
@@ -25,6 +25,8 @@
 - Android multi-project Gradle build with modules `:server-app`, `:client-app`, and `:shared`.
 - Java 21 source/target compatibility; Android compile/target SDK 36.
 - Protocol Buffers Java Lite uses `proto/location.proto` and `protoc` 3.21.7.
+- The transport is secure Bluetooth Classic RFCOMM with one saved peer per application; `shared/src/main/java/dezz/gnssshare/shared/BluetoothContract.java` owns its UUID, framing, heartbeat, timeout, and retry constants.
+- The server native inertial build uses NDK `28.2.13676358`, CMake `3.22.1`, C++17, and the recursively checked-out `mad-location-manager-lib` submodule pinned by Git.
 - The server minimum SDK is 24; the client minimum SDK is 28.
 
 ## Commands And Validation
@@ -38,7 +40,8 @@
 ## Execution Boundaries
 
 - Preserve compatibility of `proto/location.proto` unless a coordinated server/client protocol change is requested.
-- Treat Gradle build output and generated protobuf classes as generated artifacts; edit their source configuration or schema instead.
+- Preserve the one-to-one RFCOMM identity and framing contract unless a coordinated server/client behavior change is requested.
+- Treat Gradle build output, `.cxx/`, and generated protobuf/native outputs as generated artifacts; edit their source configuration, JNI/C++ source, fixed submodule pointer, or schema instead.
 - `.supermax/tasks/`: TaskAdmin internal storage. Load `task-admin` before task operations.
 - `.supermax/drafts/`: temporary Agent drafts, not durable knowledge, task progress, or runtime source.
 - `.supermax/`: independent project knowledge Vault. Read it through the entry chain below.

@@ -1,17 +1,18 @@
 ---
 title: GNSS 与手机惯性传感器连续定位规格
 created: 2026-09-13
-updated: 2026-09-13
+updated: 2026-09-19
 type: source
 doc_role: spec
 authority: proposed
-status: draft
-accepted_at:
-merged_to: []
+status: accepted
+accepted_at: 2026-09-19
+merged_to:
+  - .supermax/specs/inertial-location-estimation/spec.md
 validation:
   automated: passed
-  human: not-run
-archive_state:
+  human: passed
+archive_state: retained
 change_id: add-inertial-dead-reckoning
 capability: inertial-location-estimation
 sources:
@@ -22,6 +23,8 @@ sources:
   - client-app/src/main/java/dezz/gnssshare/client/GNSSClientService.java
   - proto/location.proto
 confidence: high
+taskadmin_tag: master
+taskadmin_id: 1
 ---
 
 # Delta Spec: inertial-location-estimation
@@ -200,8 +203,8 @@ None。
 
 - Automated: recursive submodules present；`ANDROID_HOME="$HOME/Android/Sdk" ANDROID_SDK_ROOT="$HOME/Android/Sdk" ./gradlew assembleDebug lintDebug` passed on 2026-09-13；`git --no-pager diff --check` passed。
 - Static: `proto/location.proto`、`client-app` 和 Bluetooth framing unchanged；CMake contains no network fetch。
-- Human: target phone/tablet validates live correction, GNSS-loss continuous predictions, monotonically increasing timestamps/accuracy, indoor restart from cached anchor, reacquisition, no-anchor wait, 15-second lifecycle and unsupported-sensor fallback where possible。
-- Before automated and human evidence pass, this spec SHALL remain `authority: proposed`, `status: draft` and SHALL NOT merge into stable specifications。
+- Human: passed；用户于 2026-09-19 确认该既有规格及其目标设备行为已经人工审核通过。
+- Lifecycle: accepted；已合并到 `.supermax/specs/inertial-location-estimation/spec.md`，原路径保留为变更证据。
 
 ## Open Questions
 

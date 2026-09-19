@@ -1,19 +1,20 @@
 ---
 title: 手机到平板的一对一蓝牙 GNSS 共享规格
 created: 2026-09-12
-updated: 2026-09-12
+updated: 2026-09-19
 type: source
 doc_role: spec
 authority: proposed
-status: draft
-accepted_at:
-merged_to: []
+status: accepted
+accepted_at: 2026-09-19
+merged_to:
+  - .supermax/specs/gnss-bluetooth-sharing/spec.md
 superseded_in_part_by:
   - .supermax/specs/changes/add-service-controls/specs/service-controls/spec.md
 validation:
   automated: passed
-  human: not-run
-archive_state:
+  human: passed
+archive_state: retained
 change_id: replace-wifi-with-bluetooth
 capability: gnss-bluetooth-sharing
 sources:
@@ -22,6 +23,8 @@ sources:
   - .supermax/specs/changes/replace-wifi-with-bluetooth/design.md
   - proto/location.proto
 confidence: high
+taskadmin_tag: master
+taskadmin_id: 1
 ---
 
 # Delta Spec: gnss-bluetooth-sharing
@@ -221,8 +224,8 @@ Reason: 旧功能只用任意已登记 ACL 连接控制 TCP 服务，与新的�
 
 - Automated: `ANDROID_HOME="$HOME/Android/Sdk" ANDROID_SDK_ROOT="$HOME/Android/Sdk" ./gradlew clean assembleDebug lintDebug` passed on 2026-09-12；`git --no-pager diff --check` and removed-feature reference scan also passed。
 - Independent code review: no remaining high/medium-severity implementation findings。
-- Human: not run；在目标手机和平板完成一次端到端检查，覆盖配对与双方选择、自动启动连接、定位接收、后台/锁屏、断开恢复、错误平板拒绝、蓝牙关闭提示、取消配对保留目标和重启不启动。
-- 在人工验证通过前，本规格保持 `authority: proposed`、`status: draft`，不得合并为稳定规范。
+- Human: passed；用户于 2026-09-19 确认该既有规格及其目标设备行为已经人工审核通过。
+- Lifecycle: accepted；已合并到 `.supermax/specs/gnss-bluetooth-sharing/spec.md`，原路径保留为变更证据。
 
 ## Open Questions
 

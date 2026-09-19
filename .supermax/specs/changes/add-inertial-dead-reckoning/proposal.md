@@ -1,16 +1,17 @@
 ---
 title: 增加 GNSS 失锁后的惯性航位推算
 created: 2026-09-13
-updated: 2026-09-13
+updated: 2026-09-19
 doc_role: change-proposal
 authority: proposed
-status: draft
-accepted_at:
-merged_to: []
+status: accepted
+accepted_at: 2026-09-19
+merged_to:
+  - .supermax/specs/inertial-location-estimation/spec.md
 validation:
   automated: passed
-  human: not-run
-archive_state:
+  human: passed
+archive_state: retained
 change_id: add-inertial-dead-reckoning
 capability: inertial-location-estimation
 sources:
@@ -20,6 +21,8 @@ sources:
   - proto/location.proto
   - https://github.com/maddevsio/mad-location-manager-lib
 confidence: high
+taskadmin_tag: master
+taskadmin_id: 1
 ---
 
 # Proposal: add-inertial-dead-reckoning
@@ -87,6 +90,12 @@ confidence: high
 ## Open Questions
 
 - None.
+
+## Validation Evidence
+
+- Automated: existing Gradle build/lint, recursive submodule, native ABI and diff checks passed as recorded by the linked delta.
+- Human: passed; the user confirmed the existing specification and its target-device acceptance behavior were manually reviewed on 2026-09-19.
+- Lifecycle: accepted and merged into `.supermax/specs/inertial-location-estimation/spec.md`; this workspace is retained as change evidence.
 
 ## Source Trace
 
