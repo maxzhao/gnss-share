@@ -8,6 +8,8 @@ authority: proposed
 status: draft
 accepted_at:
 merged_to: []
+superseded_in_part_by:
+  - .supermax/specs/changes/add-service-controls/specs/service-controls/spec.md
 validation:
   automated: passed
   human: not-run
@@ -192,7 +194,7 @@ Android 12 及以上版本的双方应用 SHALL 请求 `BLUETOOTH_CONNECT` 运�
 
 ### Requirement: 用户界面只暴露必要控制
 
-手机 SHALL 提供选择/更换唯一平板的入口；平板 SHALL 提供选择/更换唯一手机的入口。双方 SHALL 显示目标设备和连接/错误状态。双方 SHALL NOT 提供应用内启动、停止或连接按钮。
+手机 SHALL 提供选择/更换唯一平板的入口；平板 SHALL 提供选择/更换唯一手机的入口。双方 SHALL 显示目标设备和连接/错误状态。双方 SHALL NOT 提供单独的手动“连接”按钮。原“不提供应用内启动、停止按钮”要求由 `.supermax/specs/changes/add-service-controls/specs/service-controls/spec.md` 取代。
 
 #### Scenario: 已完成设置
 
@@ -209,7 +211,7 @@ Reason: 产品唯一传输改为经典蓝牙 RFCOMM；删除热点、网关 IP�
 
 ### Requirement: 手动服务启停和开机自启
 
-Reason: 服务由用户打开应用触发并持续运行；删除双方启停按钮、通知停止动作、启动偏好和 boot receivers。
+Reason: 服务由用户打开应用触发并持续运行；删除通知停止动作、持久启动偏好和 boot receivers。原删除双方启停按钮的要求由 `.supermax/specs/changes/add-service-controls/specs/service-controls/spec.md` 取代。
 
 ### Requirement: 手机旧蓝牙触发设备自动启停
 

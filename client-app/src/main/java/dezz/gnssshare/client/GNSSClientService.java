@@ -114,6 +114,7 @@ public class GNSSClientService extends Service implements ConnectionManager.Conn
 
         instance = this;
         connectionManager.start();
+        ServiceControl.publishServiceRunning(this);
     }
 
     @Override
@@ -125,6 +126,7 @@ public class GNSSClientService extends Service implements ConnectionManager.Conn
     @Override
     public void onDestroy() {
         instance = null;
+        ServiceControl.publishServiceStopped(this);
         BluetoothSocket socket = currentSocket;
         currentSocket = null;
         currentConnectionGeneration = -1;

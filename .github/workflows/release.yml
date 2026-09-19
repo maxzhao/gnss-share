@@ -47,6 +47,9 @@ jobs:
     - name: Set up Android SDK
       uses: android-actions/setup-android@v2
 
+    - name: Install native build tools
+      run: sdkmanager "ndk;28.2.13676358" "cmake;3.22.1"
+
     - name: Decode Keystore
       run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > keystore.jks
 

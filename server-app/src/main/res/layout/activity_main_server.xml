@@ -55,6 +55,15 @@
                     android:text="@string/service_starting"
                     android:textColor="@color/text_secondary"
                     android:textSize="14sp" />
+
+                <Button
+                    android:id="@+id/serviceControlButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:backgroundTint="#2196F3"
+                    android:text="@string/start_service"
+                    android:textColor="#ffffff" />
             </LinearLayout>
 
             <LinearLayout

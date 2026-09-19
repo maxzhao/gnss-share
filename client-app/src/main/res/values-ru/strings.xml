@@ -37,8 +37,12 @@
     <string name="bluetooth_enable_required">Для получения GNSS требуется Bluetooth.</string>
 
     <string name="service_status_title">Статус фоновой службы</string>
+    <string name="quick_settings_tile_label">GPS клиент</string>
+    <string name="start_service">Запустить</string>
+    <string name="stop_service">Остановить</string>
     <string name="service_running">✓ Служба запущена</string>
     <string name="service_starting">Запуск службы…</string>
+    <string name="service_stopped">Служба не запущена</string>
     <string name="status_waiting_for_permissions">Ожидание необходимых разрешений</string>
     <string name="status_bluetooth_unsupported">Классический Bluetooth не поддерживается</string>
     <string name="status_bluetooth_disabled">Bluetooth выключен</string>

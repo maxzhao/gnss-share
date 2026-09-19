@@ -68,6 +68,7 @@ public class MainActivity extends AppCompatActivity {
     private TextView serviceStatusText;
     private TextView targetDeviceText;
     private Button selectDeviceButton;
+    private Button serviceControlButton;
 
     private BluetoothAdapter bluetoothAdapter;
     private boolean permissionRequestInFlight;
@@ -75,6 +76,7 @@ public class MainActivity extends AppCompatActivity {
     private boolean bluetoothEnableRequestInFlight;
     private boolean bluetoothEnableDeclined;
     private boolean openPickerAfterPrerequisites;
+    private boolean manualStopRequested;
     private String appVersion = "<unknown>";
 
     private final Handler uiHandler = new Handler(Looper.getMainLooper());
@@ -82,7 +84,7 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void run() {
             updateDynamicInfo();
-            continueStartup();
+            updateServiceAndTargetStatus();
             uiHandler.postDelayed(this, 1000);
         }
     };
@@ -187,8 +189,20 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        if (intent.getBooleanExtra(ServiceControl.EXTRA_START_FROM_TILE, false)) {
+            manualStopRequested = false;
+            continueStartup();
+        }
+    }
+
+    @Override
     protected void onStart() {
         super.onStart();
+        manualStopRequested = false;
+        uiHandler.removeCallbacks(uiUpdateRunnable);
         uiHandler.post(uiUpdateRunnable);
         if (bluetoothAdapter != null && bluetoothAdapter.isEnabled()) {
             bluetoothEnableDeclined = false;
@@ -227,6 +241,7 @@ public class MainActivity extends AppCompatActivity {
         serviceStatusText = findViewById(R.id.serviceStatusText);
         targetDeviceText = findViewById(R.id.targetDeviceText);
         selectDeviceButton = findViewById(R.id.selectDeviceButton);
+        serviceControlButton = findViewById(R.id.serviceControlButton);
 
         dataAgeText.setText(String.format(
                 getString(R.string.data_age_status),
@@ -246,6 +261,16 @@ public class MainActivity extends AppCompatActivity {
         selectDeviceButton.setOnClickListener(view -> {
             openPickerAfterPrerequisites = true;
             continueStartup();
+        });
+        serviceControlButton.setOnClickListener(view -> {
+            if (GNSSClientService.isServiceRunning()) {
+                manualStopRequested = true;
+                ServiceControl.stopService(this);
+                updateServiceAndTargetStatus();
+            } else {
+                manualStopRequested = false;
+                continueStartup();
+            }
         });
         findViewById(R.id.mockLocationSettingsButton).setOnClickListener(view -> checkMockLocationSettings());
         findViewById(R.id.exportLogsButton).setOnClickListener(view -> exportLogs("gnss-client"));
@@ -295,8 +320,8 @@ public class MainActivity extends AppCompatActivity {
         }
         bluetoothEnableDeclined = false;
 
-        if (!GNSSClientService.isServiceRunning()) {
-            ContextCompat.startForegroundService(this, new Intent(this, GNSSClientService.class));
+        if (!manualStopRequested && !GNSSClientService.isServiceRunning()) {
+            ServiceControl.startService(this);
         }
         if (openPickerAfterPrerequisites) {
             openPickerAfterPrerequisites = false;
@@ -412,7 +437,9 @@ public class MainActivity extends AppCompatActivity {
             selectDeviceButton.setText(R.string.change_phone);
         }
 
-        if (GNSSClientService.isServiceRunning()) {
+        boolean serviceRunning = GNSSClientService.isServiceRunning();
+        serviceControlButton.setText(serviceRunning ? R.string.stop_service : R.string.start_service);
+        if (serviceRunning) {
             serviceStatusText.setText(R.string.service_running);
             serviceStatusText.setTextColor(getColor(android.R.color.holo_green_light));
         } else if (!hasRequiredPermissions()) {
@@ -427,7 +454,7 @@ public class MainActivity extends AppCompatActivity {
                     : R.string.status_bluetooth_disabled);
             serviceStatusText.setTextColor(getColor(android.R.color.holo_red_light));
         } else {
-            serviceStatusText.setText(R.string.service_starting);
+            serviceStatusText.setText(R.string.service_stopped);
             serviceStatusText.setTextColor(getColor(android.R.color.holo_orange_light));
         }
     }

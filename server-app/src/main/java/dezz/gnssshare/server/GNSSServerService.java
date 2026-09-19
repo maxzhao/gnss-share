@@ -9,6 +9,7 @@
 package dezz.gnssshare.server;
 
 import android.Manifest;
+import android.annotation.SuppressLint;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -33,6 +34,7 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.PowerManager;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
@@ -84,6 +86,14 @@ public class GNSSServerService extends Service {
 
     private LocationManager locationManager;
     private FusedLocationProviderClient fusedLocationProviderClient;
+    private DeadReckoningEstimator deadReckoningEstimator;
+    private PowerManager.WakeLock locationWakeLock;
+    private Location bestAnchor;
+    private String locationStatus;
+    private long latestRealLocationTimestamp = Long.MIN_VALUE;
+    private long latestLiveElapsedRealtimeNanos = Long.MIN_VALUE;
+    private boolean hasReceivedLiveLocation;
+    private int locationSessionGeneration;
     private final com.google.android.gms.location.LocationListener fusedLocationListener = this::handleLocationUpdate;
     private final LocationListener locationListener = new LocationListener() {
         @Override
@@ -140,7 +150,41 @@ public class GNSSServerService extends Service {
         notificationManager = getSystemService(NotificationManager.class);
         BluetoothManager bluetoothManager = getSystemService(BluetoothManager.class);
         bluetoothAdapter = bluetoothManager == null ? null : bluetoothManager.getAdapter();
+        PowerManager powerManager = getSystemService(PowerManager.class);
+        if (powerManager != null) {
+            locationWakeLock = powerManager.newWakeLock(
+                    PowerManager.PARTIAL_WAKE_LOCK,
+                    getPackageName() + ":LocationCollection"
+            );
+            locationWakeLock.setReferenceCounted(false);
+        }
         transportStatus = getString(R.string.service_starting);
+        deadReckoningEstimator = new DeadReckoningEstimator(
+                this,
+                mainHandler,
+                new DeadReckoningEstimator.Listener() {
+                    @Override
+                    public void onPredictedLocation(@NonNull Location location) {
+                        if (isGnssActive && hasActiveClient()) {
+                            publishLocation(location);
+                        }
+                    }
+
+                    @Override
+                    public void onStateChanged(@NonNull DeadReckoningEstimator.State state) {
+                        if (!isGnssActive) {
+                            return;
+                        }
+                        locationStatus = switch (state) {
+                            case INITIALIZING -> getString(R.string.status_inertial_initializing);
+                            case ACTIVE -> getString(R.string.status_inertial_active);
+                            case WAITING_FOR_ANCHOR -> getString(R.string.status_waiting_for_initial_location);
+                            case UNSUPPORTED -> getString(R.string.status_inertial_unsupported);
+                        };
+                        updateNotification("Inertial state changed");
+                    }
+                }
+        );
 
         IntentFilter filter = new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED);
         filter.addAction(BluetoothDevice.ACTION_BOND_STATE_CHANGED);
@@ -164,6 +208,7 @@ public class GNSSServerService extends Service {
 
         running = true;
         instance = this;
+        ServiceControl.publishServiceRunning(this);
     }
 
     @Override
@@ -176,6 +221,7 @@ public class GNSSServerService extends Service {
     public void onDestroy() {
         running = false;
         instance = null;
+        ServiceControl.publishServiceStopped(this);
         shuttingDown = true;
         mainHandler.removeCallbacks(delayedStopLocationUpdates);
         closeTransport(getString(R.string.service_stopped));
@@ -212,7 +258,11 @@ public class GNSSServerService extends Service {
         GNSSServerService service = instance;
         if (service != null) {
             synchronized (service.transportLock) {
-                return service.transportStatus;
+                String status = service.transportStatus;
+                if (service.isGnssActive && service.locationStatus != null) {
+                    status += service.getString(R.string.notification_divider) + service.locationStatus;
+                }
+                return status;
             }
         }
         String address = Preferences.targetDeviceAddress(context);
@@ -474,7 +524,18 @@ public class GNSSServerService extends Service {
             Log.d(TAG, "Starting location updates");
             lastServerResponse = lastServerResponse.toBuilder()
                     .setStatus(ServerStatus.AWAITING_LOCATION.name())
+                    .clearLocationUpdate()
                     .build();
+            locationStatus = getString(R.string.status_inertial_initializing);
+            latestRealLocationTimestamp = Long.MIN_VALUE;
+            latestLiveElapsedRealtimeNanos = Long.MIN_VALUE;
+            hasReceivedLiveLocation = false;
+            final int sessionGeneration = ++locationSessionGeneration;
+            acquireLocationWakeLock();
+            isGnssActive = true;
+            deadReckoningEstimator.start();
+            initializeFromCachedLocations();
+
             final int minimumIntervalMs = 500;
             final int minimumDistanceMeters = 0;
             if (fusedLocationProviderClient != null) {
@@ -489,6 +550,14 @@ public class GNSSServerService extends Service {
                         fusedLocationListener,
                         Looper.getMainLooper()
                 );
+                fusedLocationProviderClient.getLastLocation().addOnSuccessListener(location -> {
+                    if (isGnssActive
+                            && sessionGeneration == locationSessionGeneration
+                            && !hasReceivedLiveLocation
+                            && considerAnchor(location, false)) {
+                        initializeEstimatorFromBestAnchor();
+                    }
+                });
             } else {
                 locationManager.requestLocationUpdates(
                         LocationManager.GPS_PROVIDER,
@@ -497,16 +566,72 @@ public class GNSSServerService extends Service {
                         locationListener
                 );
             }
-            isGnssActive = true;
             updateNotification("Started location updates");
         } catch (SecurityException e) {
             Log.e(TAG, "Location permission not granted", e);
+            isGnssActive = false;
+            deadReckoningEstimator.stop();
+            clearLocationResources();
+            releaseLocationWakeLock();
             synchronized (transportLock) {
                 transportStatus = getString(R.string.status_location_permission_required);
             }
             updateNotification("Location permission missing");
         } catch (Exception e) {
             Log.e(TAG, "Error starting location updates", e);
+            isGnssActive = false;
+            deadReckoningEstimator.stop();
+            clearLocationResources();
+            releaseLocationWakeLock();
+            updateNotification("Location updates failed");
+        }
+    }
+
+    private void initializeFromCachedLocations() {
+        considerAnchor(Preferences.lastRealLocation(this), false);
+        if (locationManager != null) {
+            for (String provider : locationManager.getAllProviders()) {
+                try {
+                    considerAnchor(locationManager.getLastKnownLocation(provider), false);
+                } catch (SecurityException e) {
+                    throw e;
+                } catch (IllegalArgumentException e) {
+                    Log.w(TAG, "Cannot read last location from " + provider, e);
+                }
+            }
+        }
+        initializeEstimatorFromBestAnchor();
+    }
+
+    private boolean considerAnchor(Location location, boolean persist) {
+        if (!DeadReckoningEstimator.isValidRealLocation(location)) {
+            return false;
+        }
+        if (bestAnchor != null && location.getTime() < bestAnchor.getTime()) {
+            return false;
+        }
+        if (persist) {
+            Preferences.setLastRealLocation(this, location);
+        }
+        bestAnchor = new Location(location);
+        return true;
+    }
+
+    private void initializeEstimatorFromBestAnchor() {
+        Location anchor = bestAnchor;
+        if (anchor == null || !isGnssActive || anchor.getTime() <= latestRealLocationTimestamp) {
+            return;
+        }
+        correctAndPublishRealLocation(anchor);
+    }
+
+    private void correctAndPublishRealLocation(Location location) {
+        latestRealLocationTimestamp = location.getTime();
+        if (deadReckoningEstimator.correct(location)) {
+            Location corrected = deadReckoningEstimator.correctedEstimate(location);
+            publishLocation(corrected == null ? location : corrected);
+        } else {
+            publishLocation(location);
         }
     }
 
@@ -514,29 +639,97 @@ public class GNSSServerService extends Service {
         if (running && hasActiveClient()) {
             return;
         }
-        if (locationManager != null) {
-            locationManager.removeUpdates(locationListener);
-            locationManager.unregisterGnssStatusCallback(gnssStatusCallback);
-            locationManager = null;
-        }
-        if (fusedLocationProviderClient != null) {
-            fusedLocationProviderClient.removeLocationUpdates(fusedLocationListener);
-            fusedLocationProviderClient = null;
-        }
+        locationSessionGeneration++;
+        deadReckoningEstimator.stop();
+        bestAnchor = null;
+        latestRealLocationTimestamp = Long.MIN_VALUE;
+        latestLiveElapsedRealtimeNanos = Long.MIN_VALUE;
+        hasReceivedLiveLocation = false;
+        locationStatus = null;
+        clearLocationResources();
+        releaseLocationWakeLock();
         isGnssActive = false;
         lastServerResponse = lastServerResponse.toBuilder()
                 .setStatus(ServerStatus.LOCATION_STOPPED.name())
+                .clearLocationUpdate()
                 .build();
         updateNotification("Stopped location updates");
     }
 
+    @SuppressLint("WakelockTimeout")
+    private void acquireLocationWakeLock() {
+        if (locationWakeLock != null && !locationWakeLock.isHeld()) {
+            locationWakeLock.acquire();
+        }
+    }
+
+    private void releaseLocationWakeLock() {
+        if (locationWakeLock != null && locationWakeLock.isHeld()) {
+            locationWakeLock.release();
+        }
+    }
+
+    private void clearLocationResources() {
+        LocationManager currentLocationManager = locationManager;
+        locationManager = null;
+        if (currentLocationManager != null) {
+            try {
+                currentLocationManager.removeUpdates(locationListener);
+            } catch (RuntimeException e) {
+                Log.w(TAG, "Failed to remove location updates", e);
+            }
+            try {
+                currentLocationManager.unregisterGnssStatusCallback(gnssStatusCallback);
+            } catch (RuntimeException e) {
+                Log.w(TAG, "Failed to unregister GNSS status callback", e);
+            }
+        }
+        FusedLocationProviderClient currentFusedClient = fusedLocationProviderClient;
+        fusedLocationProviderClient = null;
+        if (currentFusedClient != null) {
+            try {
+                currentFusedClient.removeLocationUpdates(fusedLocationListener);
+            } catch (RuntimeException e) {
+                Log.w(TAG, "Failed to remove fused location updates", e);
+            }
+        }
+    }
+
     private void handleLocationUpdate(Location location) {
+        if (!isGnssActive || !DeadReckoningEstimator.isValidRealLocation(location)) {
+            return;
+        }
+        long elapsedRealtimeNanos = location.getElapsedRealtimeNanos();
+        if (hasReceivedLiveLocation) {
+            boolean stale = elapsedRealtimeNanos > 0 && latestLiveElapsedRealtimeNanos > 0
+                    ? elapsedRealtimeNanos <= latestLiveElapsedRealtimeNanos
+                    : location.getTime() <= latestRealLocationTimestamp;
+            if (stale) {
+                return;
+            }
+        }
+
+        hasReceivedLiveLocation = true;
+        latestLiveElapsedRealtimeNanos = elapsedRealtimeNanos;
+        Preferences.setLastRealLocation(this, location);
+        bestAnchor = new Location(location);
+        correctAndPublishRealLocation(bestAnchor);
+    }
+
+    private void publishLocation(Location location) {
+        if (location == null || !Double.isFinite(location.getLatitude())
+                || !Double.isFinite(location.getLongitude())) {
+            return;
+        }
+        String provider = location.getProvider();
         LocationProto.LocationUpdate.Builder builder = LocationProto.LocationUpdate.newBuilder()
                 .setTimestamp(location.getTime())
                 .setLatitude(location.getLatitude())
                 .setLongitude(location.getLongitude())
-                .setProvider(location.getProvider())
-                .setLocationAge((System.currentTimeMillis() - location.getTime()) / 1000.0f);
+                .setProvider(provider == null ? "unknown" : provider)
+                .setLocationAge("dead_reckoning".equals(provider)
+                        ? 0
+                        : Math.max(0, (System.currentTimeMillis() - location.getTime()) / 1000.0f));
         if (location.hasAltitude()) {
             builder.setAltitude(location.getAltitude());
         }
@@ -552,9 +745,10 @@ public class GNSSServerService extends Service {
 
         lastServerResponse = lastServerResponse.toBuilder()
                 .setStatus(ServerStatus.TRANSMITTING_LOCATION.name())
+                .setSatellites(getSatelliteCount())
                 .setLocationUpdate(builder.build())
                 .build();
-        updateNotification("Received location update");
+        updateNotification("Published location update");
 
         ClientHandler client;
         synchronized (transportLock) {
@@ -594,6 +788,9 @@ public class GNSSServerService extends Service {
         if (isGnssActive) {
             content += getString(R.string.notification_divider)
                     + String.format(getString(R.string.notification_satellites), getSatelliteCount());
+            if (locationStatus != null) {
+                content += getString(R.string.notification_divider) + locationStatus;
+            }
             if (lastServerResponse.hasLocationUpdate()) {
                 content += getString(R.string.notification_divider)
                         + String.format(

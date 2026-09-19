@@ -175,6 +175,14 @@
                     android:text="@string/service_starting"
                     android:textColor="@color/text_secondary" />
 
+                <Button
+                    android:id="@+id/serviceControlButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:backgroundTint="#2196F3"
+                    android:text="@string/start_service"
+                    android:textColor="#ffffff" />
+
                 <CheckBox
                     android:id="@+id/staticJitterCheckbox"
                     android:layout_width="match_parent"

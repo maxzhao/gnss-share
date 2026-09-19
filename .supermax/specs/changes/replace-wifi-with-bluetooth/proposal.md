@@ -7,6 +7,8 @@ authority: proposed
 status: draft
 accepted_at:
 merged_to: []
+superseded_in_part_by:
+  - .supermax/specs/changes/add-service-controls/proposal.md
 validation:
   automated: passed
   human: not-run
@@ -63,8 +65,8 @@ confidence: high
 - 唯一传输从 Wi-Fi 热点上的 TCP `:8887` 改为安全经典蓝牙 RFCOMM。
 - 手机保存唯一平板地址，平板保存唯一手机地址；重新选择时替换旧值。
 - 手机拒绝地址不匹配的设备，已连接时不接受第二个会话。
-- 两端由应用启动触发服务，不再由按钮、开机广播或任意蓝牙 ACL 事件控制服务。
-- 系统级强行停止仍可停止应用；应用内不提供停止入口。
+- 两端由应用启动触发服务，不再由开机广播或任意蓝牙 ACL 事件控制服务。
+- 本变更原定不提供应用内启停入口；该单一行为已由 `.supermax/specs/changes/add-service-controls/` 的 Quick Settings Tile 与应用内启停控制提案取代，自动启动行为仍保留。
 
 ## Risks And Compatibility
 

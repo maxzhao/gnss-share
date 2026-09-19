@@ -22,12 +22,26 @@ android {
     namespace "dezz.gnssshare.server"
 
     compileSdkVersion 36
+    ndkVersion '28.2.13676358'
 
     defaultConfig {
         minSdk 24
         targetSdkVersion 36
         versionCode rootProject.ext.appVersionCode
         versionName rootProject.ext.appVersionName
+
+        externalNativeBuild {
+            cmake {
+                cppFlags '-std=c++17'
+            }
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path file('src/main/cpp/CMakeLists.txt')
+            version '3.22.1'
+        }
     }
 
     compileOptions {

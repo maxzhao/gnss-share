@@ -58,6 +58,7 @@ public class MainActivity extends AppCompatActivity {
     private TextView targetDeviceText;
     private Button requestPermissionsButton;
     private Button selectDeviceButton;
+    private Button serviceControlButton;
     private Switch fusedLocationSwitch;
     private TextView fusedLocationInfo;
 
@@ -69,12 +70,13 @@ public class MainActivity extends AppCompatActivity {
     private boolean bluetoothEnableDeclined;
     private boolean batteryOptimizationRequestHandled;
     private boolean openPickerAfterPrerequisites;
+    private boolean manualStopRequested;
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final Runnable statusUpdateRunnable = new Runnable() {
         @Override
         public void run() {
-            continueStartup();
+            updateStatus();
             mainHandler.postDelayed(this, 1000);
         }
     };
@@ -139,8 +141,20 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        if (intent.getBooleanExtra(ServiceControl.EXTRA_START_FROM_TILE, false)) {
+            manualStopRequested = false;
+            continueStartup();
+        }
+    }
+
+    @Override
     protected void onStart() {
         super.onStart();
+        manualStopRequested = false;
+        mainHandler.removeCallbacks(statusUpdateRunnable);
         mainHandler.post(statusUpdateRunnable);
         if (bluetoothAdapter != null && bluetoothAdapter.isEnabled()) {
             bluetoothEnableDeclined = false;
@@ -183,6 +197,7 @@ public class MainActivity extends AppCompatActivity {
         targetDeviceText = findViewById(R.id.targetDeviceText);
         requestPermissionsButton = findViewById(R.id.requestPermissionsButton);
         selectDeviceButton = findViewById(R.id.selectDeviceButton);
+        serviceControlButton = findViewById(R.id.serviceControlButton);
         fusedLocationSwitch = findViewById(R.id.fusedLocationSwitch);
         fusedLocationInfo = findViewById(R.id.fusedLocationInfo);
 
@@ -205,6 +220,16 @@ public class MainActivity extends AppCompatActivity {
         selectDeviceButton.setOnClickListener(view -> {
             openPickerAfterPrerequisites = true;
             continueStartup();
+        });
+        serviceControlButton.setOnClickListener(view -> {
+            if (GNSSServerService.isServiceRunning()) {
+                manualStopRequested = true;
+                ServiceControl.stopService(this);
+                updateStatus();
+            } else {
+                manualStopRequested = false;
+                continueStartup();
+            }
         });
         findViewById(R.id.exportLogsButton).setOnClickListener(view -> exportLogs("gnss-server"));
 
@@ -250,7 +275,7 @@ public class MainActivity extends AppCompatActivity {
         }
         bluetoothEnableDeclined = false;
 
-        if (!GNSSServerService.isServiceRunning()) {
+        if (!manualStopRequested && !GNSSServerService.isServiceRunning()) {
             startGNSSService();
         }
         checkBatteryOptimization();
@@ -334,7 +359,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void startGNSSService() {
-        ContextCompat.startForegroundService(this, new Intent(this, GNSSServerService.class));
+        ServiceControl.startService(this);
     }
 
     private void updateStatus() {
@@ -381,7 +406,9 @@ public class MainActivity extends AppCompatActivity {
             selectDeviceButton.setText(R.string.change_tablet);
         }
 
-        if (GNSSServerService.isServiceRunning()) {
+        boolean serviceRunning = GNSSServerService.isServiceRunning();
+        serviceControlButton.setText(serviceRunning ? R.string.stop_service : R.string.start_service);
+        if (serviceRunning) {
             String serviceStatus = GNSSServerService.getTransportStatus(this);
             serviceStatusText.setText(serviceStatus);
             boolean error = serviceStatus.equals(getString(R.string.status_bluetooth_permission_required))
@@ -390,6 +417,7 @@ public class MainActivity extends AppCompatActivity {
                     || serviceStatus.equals(getString(R.string.status_select_tablet))
                     || serviceStatus.equals(getString(R.string.status_target_unavailable))
                     || serviceStatus.equals(getString(R.string.status_location_permission_required))
+                    || serviceStatus.contains(getString(R.string.status_inertial_unsupported))
                     || serviceStatus.startsWith(getString(R.string.status_listen_failed, ""));
             serviceStatusText.setTextColor(getColor(
                     error ? android.R.color.holo_red_dark : android.R.color.holo_green_dark
@@ -406,7 +434,7 @@ public class MainActivity extends AppCompatActivity {
                     : R.string.status_bluetooth_disabled);
             serviceStatusText.setTextColor(getColor(android.R.color.holo_red_dark));
         } else {
-            serviceStatusText.setText(R.string.service_starting);
+            serviceStatusText.setText(R.string.service_stopped);
             serviceStatusText.setTextColor(getColor(android.R.color.holo_orange_dark));
         }
     }
