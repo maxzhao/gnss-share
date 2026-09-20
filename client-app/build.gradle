@@ -47,7 +47,9 @@ android {
     buildTypes {
         release {
             minifyEnabled false
-            signingConfig signingConfigs.release
+            signingConfig providers.gradleProperty('testSigning').getOrElse('false').toBoolean()
+                    ? signingConfigs.debug
+                    : signingConfigs.release
         }
         debug {
             debuggable true
@@ -58,7 +60,8 @@ android {
 androidComponents {
     onVariants(selector().all()) { variant ->
         variant.outputs.forEach { output ->
-            output.outputFileName.set("gnss-client-${android.defaultConfig.versionName}.apk")
+            output.outputFileName.set(
+                    "gnss-client-${android.defaultConfig.versionName}-universal.apk")
         }
     }
 }

@@ -61,10 +61,21 @@ android {
     buildTypes {
         release {
             minifyEnabled false
-            signingConfig signingConfigs.release
+            signingConfig providers.gradleProperty('testSigning').getOrElse('false').toBoolean()
+                    ? signingConfigs.debug
+                    : signingConfigs.release
         }
         debug {
             debuggable true
+        }
+    }
+
+    splits {
+        abi {
+            enable true
+            reset()
+            include 'arm64-v8a', 'armeabi-v7a', 'x86', 'x86_64'
+            universalApk true
         }
     }
 }
@@ -72,7 +83,9 @@ android {
 androidComponents {
     onVariants(selector().all()) { variant ->
         variant.outputs.forEach { output ->
-            output.outputFileName.set("gnss-server-${android.defaultConfig.versionName}.apk")
+            def abi = output.filters.find { filter -> filter.filterType.name() == 'ABI' }?.identifier
+            output.outputFileName.set(
+                    "gnss-server-${android.defaultConfig.versionName}-${abi ?: 'universal'}.apk")
         }
     }
 }

@@ -50,26 +50,44 @@ jobs:
     - name: Install native build tools
       run: sdkmanager "ndk;28.2.13676358" "cmake;3.22.1"
 
-    - name: Decode Keystore
-      run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > keystore.jks
+    - name: Install test signing key
+      env:
+        TEST_KEYSTORE_BASE64: ${{ secrets.TEST_KEYSTORE_BASE64 }}
+      run: |
+        mkdir -p "$HOME/.android"
+        printf '%s' "$TEST_KEYSTORE_BASE64" | base64 -d > "$HOME/.android/debug.keystore"
+        chmod 600 "$HOME/.android/debug.keystore"
 
     - name: Make gradlew executable
       run: chmod +x gradlew
 
-    - name: Build release APKs
+    - name: Build test-signed release APKs
       env:
         VERSION_NAME: ${{ steps.version.outputs.version }}
-        KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
       run: |
-        ./gradlew assembleRelease
+        ./gradlew assembleRelease -PtestSigning=true
+
+    - name: Prepare release notes
+      id: release-notes
+      env:
+        VERSION_NAME: ${{ steps.version.outputs.version }}
+      run: |
+        NOTES_PATH=".github/release-notes/${VERSION_NAME}.md"
+        if [[ ! -f "${NOTES_PATH}" ]]; then
+          NOTES_PATH="${RUNNER_TEMP}/release-notes.md"
+          printf 'Changes in `%s`.\n' "${VERSION_NAME}" > "${NOTES_PATH}"
+        fi
+        echo "path=${NOTES_PATH}" >> "$GITHUB_OUTPUT"
 
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v1
       with:
         tag_name: ${{ steps.version.outputs.version }}
         name: Release ${{ steps.version.outputs.version }}
+        body_path: ${{ steps.release-notes.outputs.path }}
         draft: false
         prerelease: false
+        fail_on_unmatched_files: true
         files: |
-          client-app/build/outputs/apk/release/gnss-client-${{ steps.version.outputs.version }}.apk
-          server-app/build/outputs/apk/release/gnss-server-${{ steps.version.outputs.version }}.apk
+          client-app/build/outputs/apk/release/gnss-client-${{ steps.version.outputs.version }}-universal.apk
+          server-app/build/outputs/apk/release/gnss-server-${{ steps.version.outputs.version }}-*.apk
