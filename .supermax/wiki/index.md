@@ -2,4 +2,8 @@
 
 Purpose: route Agents to curated, reusable project knowledge without duplicating source files.
 
-Current state: no curated wiki topics. Treat repository manifests, module configuration, protocol schema, and implementation files as source of truth until a topic note is created and linked here.
+| Topic | Read when | Entry |
+| --- | --- | --- |
+| GitHub APK 发布 | 准备或排障版本号、测试签名、ABI 拆包、GitHub Actions、Release 附件和 API 降级发布 | [[github-release-playbook]] |
+
+Repository manifests, module configuration, protocol schema, and implementation files remain the source of truth. Wiki notes record reusable procedures, decisions, evidence, and known gaps.
